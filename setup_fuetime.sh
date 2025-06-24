@@ -23,10 +23,12 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Run gunicorn with eventlet
+# Install gevent for better compatibility
+pip install gevent
+
 echo "⚙️ Creating Gunicorn systemd service..."
 
-# Create Gunicorn service file
+# Create Gunicorn service file with gevent worker
 sudo tee /etc/systemd/system/fuetime.service > /dev/null <<EOF
 [Unit]
 Description=Fuetime Flask SocketIO App
@@ -36,7 +38,9 @@ After=network.target
 User=ubuntu
 WorkingDirectory=/home/ubuntu/Fuetimeplus
 Environment="PATH=/home/ubuntu/Fuetimeplus/venv/bin"
-ExecStart=/home/ubuntu/Fuetimeplus/venv/bin/gunicorn --worker-class eventlet -w 1 app:app
+ExecStart=/home/ubuntu/Fuetimeplus/venv/bin/gunicorn --worker-class gevent --worker-connections 1000 -w 1 --timeout 120 --graceful-timeout 120 --log-level=debug app:app
+Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
