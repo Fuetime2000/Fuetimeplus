@@ -7,7 +7,7 @@ click==8.1.7
 
 # Database
 Flask-SQLAlchemy==3.0.5
-SQLAlchemy==1.4.50
+SQLAlchemy>=2.0.0
 
 # Authentication & Security
 Flask-Login==0.6.3
