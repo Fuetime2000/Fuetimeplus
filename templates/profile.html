@@ -1976,6 +1976,13 @@ function clearCallState() {
     callStartTime = null;
 }
 
+// Function to show payment modal and redirect to wallet page
+function showPaymentModal(requiredAmount, currentBalance) {
+    if (confirm(`Insufficient balance. You need ₹${requiredAmount} but only have ₹${currentBalance}. Would you like to add funds to your wallet?`)) {
+        window.location.href = '{{ url_for("wallet") }}';
+    }
+}
+
 function checkPendingCalls() {
     // Check for any pending calls in localStorage
     const pendingCall = localStorage.getItem('pendingCall');
