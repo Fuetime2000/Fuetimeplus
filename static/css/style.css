@@ -35,6 +35,7 @@ body {
     .navbar-collapse::before {
         content: 'FueTime';
         color: #6b48ff;
+        font-family: 'Times New Roman', Times, serif;
         font-size: 1.5rem;
         font-weight: bold;
         padding: 1rem 1.5rem;
@@ -765,6 +766,10 @@ footer img:hover {
 }
 
 /* Scrollbar styling for the footer */
+.footer-logo .h4 {
+    font-family: 'Times New Roman', Times, serif;
+}
+
 .footer::-webkit-scrollbar {
     width: 5px;
 }
