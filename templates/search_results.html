@@ -19,17 +19,7 @@
 <div class="container mt-4 px-3">
     <h2 class="mb-4">{{ _('Search Results for "%(query)s"', query=query) }}</h2>
     
-    <!-- Add location filter button -->
-    <div class="mb-4">
-        <button type="button" class="location-btn btn btn-outline-primary position-relative" onclick="toggleLocationFilter()">
-            <i class="fas fa-location-dot"></i>
-            <span class="ms-1">{{ _('Near Me') }}</span>
-            <div class="location-tooltip">{{ _('Filter by location') }}</div>
-            <div id="location-spinner" class="spinner-border spinner-border-sm d-none" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </button>
-    </div>
+
     
     {% if users or inactive_users %}
         {% if users %}
@@ -79,12 +69,16 @@
                             {% if user.payment_charge %}
                                 <div class="mb-2">
                                     <i class="fas fa-rupee-sign me-2"></i>
-                                    {% if user.payment_type == 'hours' %}
-                                        {{ _('Rate: ₹%(rate)s / hour', rate=user.payment_charge|int) }}
-                                    {% elif user.payment_type == 'daily' %}
-                                        {{ _('Rate: ₹%(rate)s / day', rate=user.payment_charge|int) }}
-                                    {% elif user.payment_type == 'month' %}
-                                        {{ _('Rate: ₹%(rate)s / month', rate=user.payment_charge|int) }}
+                                    {% if user.payment_type %}
+                                        {% if user.payment_type|lower == 'hours' or user.payment_type|lower == 'hourly' %}
+                                            {{ _('Rate: ₹%(rate)s / hour', rate=user.payment_charge|int) }}
+                                        {% elif user.payment_type|lower == 'daily' %}
+                                            {{ _('Rate: ₹%(rate)s / day', rate=user.payment_charge|int) }}
+                                        {% elif user.payment_type|lower == 'month' or user.payment_type|lower == 'monthly' %}
+                                            {{ _('Rate: ₹%(rate)s / month', rate=user.payment_charge|int) }}
+                                        {% else %}
+                                            {{ _('Rate: ₹%(rate)s / %(type)s', rate=user.payment_charge|int, type=user.payment_type) }}
+                                        {% endif %}
                                     {% else %}
                                         {{ _('Rate: ₹%(rate)s', rate=user.payment_charge|int) }}
                                     {% endif %}
@@ -136,73 +130,6 @@
 {% block scripts %}
 {{ super() }}
 <script>
-let isLocationFilterActive = false;
-
-async function toggleLocationFilter() {
-    const button = document.querySelector('.location-btn');
-    const icon = button.querySelector('i');
-    const text = button.querySelector('span');
-    const spinner = document.getElementById('location-spinner');
-    const resultsContainer = document.querySelector('.row');
-
-    if (!isLocationFilterActive) {
-        if (navigator.geolocation) {
-            try {
-                // Show loading state
-                icon.style.display = 'none';
-                spinner.classList.remove('d-none');
-                button.disabled = true;
-
-                // Get user's location
-                const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(
-                        resolve,
-                        reject,
-                        {
-                            enableHighAccuracy: true,
-                            timeout: 10000,
-                            maximumAge: 0
-                        }
-                    );
-                });
-
-                // Call backend API with search query
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                const query = new URLSearchParams(window.location.search).get('q') || '';
-                const url = `/filter-by-location?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&q=${encodeURIComponent(query)}`;
-                
-                const response = await fetch(url);
-                const data = await response.json();
-
-                if (data.success) {
-                    resultsContainer.innerHTML = data.html;
-                    if (data.html.trim() === '') {
-                        showToast("{{ _('No users found in this area') }}");
-                    }
-                    isLocationFilterActive = true;
-                    text.textContent = "{{ _('Show All') }}";
-                } else {
-                    throw new Error(data.error || "{{ _('Failed to filter users by location') }}");
-                }
-            } catch (error) {
-                console.error('Location error:', error);
-                showToast(error.message || "{{ _('Could not get your location. Please try again.') }}");
-            } finally {
-                // Reset UI
-                spinner.classList.add('d-none');
-                icon.style.display = 'inline-block';
-                button.disabled = false;
-            }
-        } else {
-            showToast("{{ _('Geolocation is not supported by your browser.') }}");
-        }
-    } else {
-        // Reset to show all users
-        window.location.reload();
-    }
-}
-
 // Show toast notification
 function showToast(message, duration = 3000) {
     const toast = document.createElement('div');

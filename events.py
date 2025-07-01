@@ -115,11 +115,18 @@ def handle_initiate_call(data):
             emit('call_initiated', {'success': False, 'error': 'Recipient ID is required'})
             return
         
+        # Immediately acknowledge the call initiation to prevent timeout
+        emit('call_initiated', {
+            'success': True,
+            'message': 'Processing call request...',
+            'status': 'processing'
+        })
+        
         # Start a new database session
         with app.app_context():
             recipient = User.query.get(recipient_id)
             if not recipient:
-                emit('call_initiated', {'success': False, 'error': 'Recipient not found'})
+                emit('call_failed', {'error': 'Recipient not found'})
                 return
             
             # Get call cost (configurable)
@@ -130,8 +137,7 @@ def handle_initiate_call(data):
                 current_user.wallet_balance = 0.0
                 
             if float(current_user.wallet_balance) < call_cost:
-                emit('call_initiated', {
-                    'success': False, 
+                emit('call_failed', {
                     'error': 'Insufficient balance',
                     'required': call_cost,
                     'current_balance': float(current_user.wallet_balance)
@@ -149,9 +155,6 @@ def handle_initiate_call(data):
                 call_cost = round(float(call_cost), 2)
                 old_balance = float(user.wallet_balance) if user.wallet_balance is not None else 0.0
                 new_balance = round(old_balance - call_cost, 2)
-                
-                # Update user's balance
-                user.wallet_balance = new_balance
                 
                 # Generate a unique call ID
                 call_id = str(uuid.uuid4())
@@ -175,6 +178,9 @@ def handle_initiate_call(data):
                 # Add records to session
                 db.session.add(call)
                 db.session.add(transaction)
+                
+                # Update user's balance
+                user.wallet_balance = new_balance
                 db.session.commit()
                 
                 # Update current_user balance in memory
@@ -189,17 +195,19 @@ def handle_initiate_call(data):
                     'caller_name': current_user.full_name or current_user.email.split('@')[0],
                     'call_type': call_type,
                     'call_id': call.call_id,
-                    'call_cost': call_cost
+                    'call_cost': call_cost,
+                    'timestamp': datetime.utcnow().isoformat()
                 }, room=f'user_{recipient_id}')
                 
-                # Send success response to caller
-                emit('call_initiated', {
+                # Send success response to caller with phone number
+                emit('call_ready', {
                     'success': True,
-                    'message': 'Call initiated successfully',
+                    'message': 'Call ready',
                     'call_id': call.call_id,
                     'call_cost': call_cost,
+                    'phone_number': recipient.phone,  # Make sure this is the recipient's phone number
                     'new_balance': new_balance,
-                    'phone_number': recipient.phone  # Send recipient's phone number
+                    'timestamp': datetime.utcnow().isoformat()
                 })
                 
             except Exception as e:

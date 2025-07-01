@@ -199,62 +199,123 @@
 
     <!-- Footer -->
     {% if request.endpoint in ['main.index', 'account'] %}
-    <footer class="footer mt-5 py-4 bg-light">
+    <footer class="footer mt-auto py-5 bg-dark text-white">
         <div class="container">
-            <div class="row gy-4">
-                <div class="col-12 col-md-4 mb-3">
-                    <h5 class="text-primary mb-3">FueTime</h5>
-                    <p class="text-muted small mb-0">{{ _("Connecting skilled professionals with those who need their services.") }}</p>
+            <div class="row g-4">
+                <!-- About Column -->
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="footer-logo d-flex align-items-center mb-3">
+                        <span class="h4 mb-0 text-primary fw-bold">FueTime</span>
+                    </div>
+                    <p class="text-muted">{{ _("Connecting skilled professionals with those who need their services.") }}</p>
+                    <div class="social-links mt-4">
+                        <a href="https://facebook.com" class="text-white me-3" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                            <i class="fab fa-facebook-f"></i>
+                        </a>
+                        <a href="https://www.instagram.com/mr.dipend_ra/" class="text-white me-3" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                            <i class="fab fa-instagram"></i>
+                        </a>
+                        <a href="https://linkedin.com" class="text-white" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                            <i class="fab fa-linkedin-in"></i>
+                        </a>
+                    </div>
                 </div>
-                <div class="col-6 col-md-4 mb-3">
-                    <h5 class="text-primary mb-3">{{ _("Quick Links") }}</h5>
+
+                <!-- Quick Links Column -->
+                <div class="col-lg-2 col-md-6 mb-4">
+                    <h5 class="text-white mb-4 position-relative pb-2">{{ _("Quick Links") }}
+                        <span class="position-absolute bottom-0 start-0 bg-primary" style="height: 2px; width: 40px;"></span>
+                    </h5>
                     <ul class="list-unstyled">
-                        <li class="mb-2"><a href="{{ url_for('about') }}" class="text-muted text-decoration-none">{{ _("About Us") }}</a></li>
-                        <li class="mb-2"><a href="{{ url_for('help') }}" class="text-muted text-decoration-none">{{ _("Help Center") }}</a></li>
+                        <li class="mb-2">
+                            <a href="{{ url_for('about') }}" class="text-muted text-decoration-none d-flex align-items-center">
+                                <i class="fas fa-chevron-right small me-2 text-primary"></i>{{ _("About Us") }}
+                            </a>
+                        </li>
+                        <li class="mb-2">
+                            <a href="{{ url_for('help') }}" class="text-muted text-decoration-none d-flex align-items-center">
+                                <i class="fas fa-chevron-right small me-2 text-primary"></i>{{ _("Help Center") }}
+                            </a>
+                        </li>
                         {% if current_user.is_authenticated %}
-                        <li class="mb-2"><a href="{{ url_for('messages') }}" class="text-muted text-decoration-none">{{ _("Messages") }}</a></li>
+                        <li class="mb-2">
+                            <a href="{{ url_for('messages') }}" class="text-muted text-decoration-none d-flex align-items-center">
+                                <i class="fas fa-chevron-right small me-2 text-primary"></i>{{ _("Messages") }}
+                            </a>
+                        </li>
                         {% endif %}
                     </ul>
                 </div>
-                <div class="col-12 col-md-4 mb-3">
-                    <h5 class="text-primary mb-3">{{ _("Secure Payments") }}</h5>
-                    <div class="payment-methods mb-2">
-                        <i class="fab fa-cc-visa fa-2x me-2" title="Visa"></i>
-                        <i class="fab fa-cc-mastercard fa-2x me-2" title="Mastercard"></i>
-                        <i class="fas fa-money-bill-wave fa-2x me-2" title="UPI"></i>
-                        <i class="fas fa-university fa-2x me-2" title="Net Banking"></i>
-                    </div>
-                    <div class="security-badge d-flex align-items-center text-muted small">
-                        <i class="fas fa-shield-alt text-success me-2"></i>
-                        <span>{{ _("Your payments are 100% secure with bank-grade encryption") }}</span>
-                    </div>
-                </div>
-                <div class="col-6 col-md-4 mb-3">
-                    <h5 class="text-primary mb-3">{{ _("Legal") }}</h5>
+
+                <!-- Legal Column -->
+                <div class="col-lg-2 col-md-6 mb-4">
+                    <h5 class="text-white mb-4 position-relative pb-2">{{ _("Legal") }}
+                        <span class="position-absolute bottom-0 start-0 bg-primary" style="height: 2px; width: 40px;"></span>
+                    </h5>
                     <ul class="list-unstyled">
-                        <li class="mb-2"><a href="{{ url_for('privacy') }}" class="text-muted text-decoration-none">{{ _("Privacy Policy") }}</a></li>
-                        <li class="mb-2"><a href="{{ url_for('terms') }}" class="text-muted text-decoration-none">{{ _("Terms & Conditions") }}</a></li>
-                        <li class="mb-2"><a href="{{ url_for('sitemap') }}" class="text-muted text-decoration-none">{{ _("Sitemap") }}</a></li>
+                        <li class="mb-2">
+                            <a href="{{ url_for('privacy') }}" class="text-muted text-decoration-none d-flex align-items-center">
+                                <i class="fas fa-chevron-right small me-2 text-primary"></i>{{ _("Privacy Policy") }}
+                            </a>
+                        </li>
+                        <li class="mb-2">
+                            <a href="{{ url_for('terms') }}" class="text-muted text-decoration-none d-flex align-items-center">
+                                <i class="fas fa-chevron-right small me-2 text-primary"></i>{{ _("Terms & Conditions") }}
+                            </a>
+                        </li>
+                        <li class="mb-2">
+                            <a href="{{ url_for('sitemap') }}" class="text-muted text-decoration-none d-flex align-items-center">
+                                <i class="fas fa-chevron-right small me-2 text-primary"></i>{{ _("Sitemap") }}
+                            </a>
+                        </li>
+                        <li class="mb-2">
+                            <a href="{{ url_for('faq') }}" class="text-muted text-decoration-none d-flex align-items-center">
+                                <i class="fas fa-chevron-right small me-2 text-primary"></i>{{ _("FAQ") }}
+                            </a>
+                        </li>
                     </ul>
                 </div>
-            </div>
-            <hr class="my-4">
-            <!-- Social Media Icons -->
-            <div class="row mb-4">
-                <div class="col-12 text-center">
-                    <a href="https://facebook.com" class="text-muted text-decoration-none me-3" target="_blank" rel="noopener noreferrer">
-                        <i class="fab fa-facebook fa-2x"></i>
-                    </a>
-                    <a href="https://www.instagram.com/mr.dipend_ra/" class="text-muted text-decoration-none me-3" target="_blank" rel="noopener noreferrer">
-                        <i class="fab fa-instagram fa-2x"></i>
-                    <a href="https://linkedin.com" class="text-muted text-decoration-none" target="_blank" rel="noopener noreferrer">
-                        <i class="fab fa-linkedin fa-2x"></i>
-                    </a>
+
+                <!-- Payment Methods Column -->
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <h5 class="text-white mb-4 position-relative pb-2">{{ _("Secure Payments") }}
+                        <span class="position-absolute bottom-0 start-0 bg-primary" style="height: 2px; width: 40px;"></span>
+                    </h5>
+                    <div class="payment-methods mb-4">
+                        <div class="d-flex flex-wrap gap-3">
+                            <div class="payment-icon bg-white rounded p-2 shadow-sm">
+                                <i class="fab fa-cc-visa fa-2x text-primary" title="Visa"></i>
+                            </div>
+                            <div class="payment-icon bg-white rounded p-2 shadow-sm">
+                                <i class="fab fa-cc-mastercard fa-2x text-primary" title="Mastercard"></i>
+                            </div>
+                            <div class="payment-icon bg-white rounded p-2 shadow-sm">
+                                <i class="fas fa-money-bill-wave fa-2x text-primary" title="UPI"></i>
+                            </div>
+                            <div class="payment-icon bg-white rounded p-2 shadow-sm">
+                                <i class="fas fa-university fa-2x text-primary" title="Net Banking"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="security-badge d-flex align-items-center bg-primary-soft p-3 rounded">
+                        <i class="fas fa-shield-alt text-primary me-3"></i>
+                        <span class="small">{{ _("Your payments are 100% secure with bank-grade encryption") }}</span>
+                    </div>
                 </div>
             </div>
-            <div class="row">
-                <div class="col-12 text-center">
-                    <p class="text-muted mb-0"> 2024 FueTime. {{ _("All rights reserved.") }}</p>
+            
+            <!-- Copyright -->
+            <div class="border-top border-secondary pt-4 mt-4">
+                <div class="row align-items-center">
+                    <div class="col-md-6 text-center text-md-start mb-3 mb-md-0">
+                        <p class="mb-0 text-muted">&copy; {{ now.year }} FueTime. {{ _("All rights reserved.") }}</p>
+                    </div>
+                    <div class="col-md-6 text-center text-md-end">
+                        <p class="mb-0">
+                            <a href="#" class="text-decoration-none text-muted me-3">{{ _("Privacy Policy") }}</a>
+                            <a href="#" class="text-decoration-none text-muted">{{ _("Terms of Service") }}</a>
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -348,8 +409,42 @@
         });
     </script>
     
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    
     {% if current_user.is_authenticated %}
     <script>
+    // Global socket initialization check
+    window.isSocketInitialized = false;
+    window.safeEmit = function(event, data) {
+        if (!window.socket || !window.socket.connected) {
+            console.warn('Socket not connected, cannot emit:', event);
+            return false;
+        }
+        try {
+            window.socket.emit(event, data);
+            return true;
+        } catch (error) {
+            console.error('Error emitting event:', event, error);
+            return false;
+        }
+    };
+    
+    // Function to wait for socket to be ready
+    window.whenSocketReady = function(callback) {
+        if (window.isSocketInitialized && window.socket && window.socket.connected) {
+            callback();
+        } else {
+            const checkInterval = setInterval(() => {
+                if (window.isSocketInitialized && window.socket && window.socket.connected) {
+                    clearInterval(checkInterval);
+                    callback();
+                }
+            }, 100);
+        }
+    };
+    
+    // Main socket initialization
         var USER_ID = parseInt("{{ current_user.id }}");
         var SOCKET_URL = '{{ config["SOCKET_SERVER_URL"] or request.url_root.strip("/") }}';
         var socket = null;
@@ -357,64 +452,103 @@
         const MAX_RECONNECT_ATTEMPTS = 10;
         const RECONNECT_DELAY = 3000; // 3 seconds
         
+        // Safe emit function with error handling
+        function safeEmit(event, data) {
+            if (!socket) {
+                console.error('Socket not initialized');
+                return false;
+            }
+            if (!socket.connected) {
+                console.error('Socket not connected, cannot emit', event);
+                return false;
+            }
+            try {
+                socket.emit(event, data);
+                return true;
+            } catch (error) {
+                console.error('Error emitting event:', error);
+                return false;
+            }
+        }
+        
         function initSocket() {
             if (!USER_ID) {
                 console.log('User not authenticated, skipping socket initialization');
                 return;
             }
 
-            socket = io({
-                transports: ['websocket'],
-                upgrade: false,
-                reconnection: true,
-                reconnectionDelay: RECONNECT_DELAY,
-                reconnectionDelayMax: 5000,
-                reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
-                timeout: 20000,
-                forceNew: true,
-                autoConnect: true
-            });
+            try {
+                if (typeof io === 'undefined') {
+                    console.error('Socket.IO library not loaded');
+                    return;
+                }
 
-            // Connection established
-            socket.on('connect', function() {
-                console.log('Successfully connected to WebSocket server');
-                reconnectAttempts = 0;
-                socket.emit('user_online', {user_id: USER_ID});
-                socket.emit('join', {room: 'user_' + USER_ID});
-            });
+                socket = io({
+                    transports: ['websocket', 'polling'],
+                    upgrade: true,
+                    reconnection: true,
+                    reconnectionDelay: RECONNECT_DELAY,
+                    reconnectionDelayMax: 10000,
+                    reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+                    timeout: 20000,
+                    forceNew: true,
+                    autoConnect: true
+                });
 
-            // Connection error
-            socket.on('connect_error', function(error) {
-                console.error('WebSocket connection error:', error);
-                reconnectAttempts++;
-            });
+                // Connection established
+                socket.on('connect', function() {
+                    console.log('Successfully connected to WebSocket server');
+                    reconnectAttempts = 0;
+                    window.isSocketInitialized = true;
+                    window.socket = socket; // Make socket globally available
+                    safeEmit('user_online', {user_id: USER_ID});
+                    safeEmit('join', {room: 'user_' + USER_ID});
+                });
 
-            // Disconnection
-            socket.on('disconnect', function(reason) {
-                console.log('Disconnected from WebSocket:', reason);
-                socket.emit('user_offline', {user_id: USER_ID});
-            });
+                // Connection error
+                socket.on('connect_error', function(error) {
+                    console.error('WebSocket connection error:', error);
+                    reconnectAttempts++;
+                    if (reconnectAttempts === 1) {
+                        console.log('Attempting to reconnect...');
+                    }
+                });
 
-            // Handle reconnection attempts
-            socket.on('reconnect_attempt', function(attemptNumber) {
-                console.log('Reconnection attempt:', attemptNumber);
-            });
+                // Disconnection
+                socket.on('disconnect', function(reason) {
+                    console.log('Disconnected from WebSocket:', reason);
+                    window.isSocketInitialized = false;
+                    safeEmit('user_offline', {user_id: USER_ID});
+                });
 
-            // Handle successful reconnection
-            socket.on('reconnect', function(attemptNumber) {
-                console.log('Successfully reconnected after', attemptNumber, 'attempts');
-                socket.emit('user_online', {user_id: USER_ID});
-            });
+                // Handle reconnection attempts
+                socket.on('reconnect_attempt', function(attemptNumber) {
+                    console.log('Reconnection attempt:', attemptNumber);
+                });
 
-            // Handle failed reconnection
-            socket.on('reconnect_failed', function() {
-                console.error('Failed to reconnect after', MAX_RECONNECT_ATTEMPTS, 'attempts');
-            });
+                // Handle successful reconnection
+                socket.on('reconnect', function(attemptNumber) {
+                    console.log('Successfully reconnected after', attemptNumber, 'attempts');
+                    safeEmit('user_online', {user_id: USER_ID});
+                });
+
+                // Handle failed reconnection
+                socket.on('reconnect_failed', function() {
+                    console.error('Failed to reconnect after', MAX_RECONNECT_ATTEMPTS, 'attempts');
+                });
+
+                return true;
+            } catch (error) {
+                console.error('Error initializing socket:', error);
+                return false;
+            }
         }
         
         // Initialize socket when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            initSocket();
+            if (initSocket()) {
+                console.log('Socket initialization started');
+            }
             
             // Handle page visibility changes
             document.addEventListener('visibilitychange', function() {
@@ -422,10 +556,14 @@
                     // Page is now visible, reconnect if needed
                     if (!socket.connected) {
                         console.log('Page became visible, reconnecting WebSocket...');
-                        socket.connect();
+                        try {
+                            socket.connect();
+                        } catch (error) {
+                            console.error('Error reconnecting socket:', error);
+                        }
                     } else {
                         // If already connected, just update online status
-                        socket.emit('user_online', {user_id: USER_ID});
+                        safeEmit('user_online', {user_id: USER_ID});
                     }
                 }
             });
@@ -434,10 +572,7 @@
         // Handle beforeunload to properly clean up
         window.addEventListener('beforeunload', function() {
             if (socket && socket.connected) {
-                socket.emit('user_offline', {user_id: USER_ID});
-                // Give some time for the message to be sent
-                const start = Date.now();
-                while (Date.now() - start < 100) { /* Wait for 100ms */ }
+                safeEmit('user_offline', {user_id: USER_ID});
             }
         });
 

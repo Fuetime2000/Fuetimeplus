@@ -1804,99 +1804,129 @@ function initiateCall(userId) {
     }
     
     const callProcessing = document.getElementById('callProcessing');
-    if (callProcessing) {
-        callProcessing.style.display = 'flex';
-    }
     const progressBar = callProcessing.querySelector('.progress-bar-fill');
+    const progressText = callProcessing.querySelector('p');
     
-    // Show processing modal
+    // Show processing modal with initial message
+    callProcessing.style.display = 'flex';
     progressBar.style.width = '0%';
+    progressText.textContent = 'Initiating call...';
     
     // Start progress animation
-    setTimeout(function() {
-        progressBar.style.width = '100%';
-    }, 100);
+    const progressInterval = setInterval(() => {
+        const currentWidth = parseFloat(progressBar.style.width) || 0;
+        if (currentWidth < 90) { // Only animate up to 90% to show we're still waiting
+            progressBar.style.width = (currentWidth + 5) + '%';
+        }
+    }, 500);
+    
+    // Set a timeout for the entire call process
+    const callTimeout = setTimeout(() => {
+        clearInterval(progressInterval);
+        callProcessing.style.display = 'none';
+        alert('Call request timed out. Please try again.');
+    }, 30000); // 30 second overall timeout
+    
+    // Cleanup function
+    const cleanup = () => {
+        clearInterval(progressInterval);
+        clearTimeout(callTimeout);
+        socket.off('call_initiated', onCallInitiated);
+        socket.off('call_ready', onCallReady);
+        socket.off('call_failed', onCallFailed);
+    };
+    
+    // Handle call initialization
+    const onCallInitiated = (data) => {
+        if (data.status === 'processing') {
+            progressText.textContent = 'Processing your request...';
+            progressBar.style.width = '30%';
+        }
+    };
+    
+    // Handle call ready
+    const onCallReady = (data) => {
+        progressText.textContent = 'Connecting your call...';
+        progressBar.style.width = '70%';
+        
+        // Update wallet balance if provided
+        if (data.new_balance !== undefined) {
+            updateWalletBalance(data.new_balance);
+        }
+        
+        // Set call tracking variables
+        callId = data.call_id;
+        callStartTime = Date.now();
+        callInProgress = true;
+        
+        // Store call info in localStorage as backup
+        const callInfo = {
+            callId: data.call_id,
+            startTime: Date.now(),
+            targetPhone: data.phone_number
+        };
+        localStorage.setItem('pendingCall', JSON.stringify(callInfo));
+        
+        // Set a timeout to complete the call if user doesn't return
+        callTimeoutId = setTimeout(() => {
+            if (callInProgress) {
+                completeCall();
+            }
+        }, MAX_CALL_DURATION);
+        
+        // Add visibility change handler for when user returns from phone app
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                document.removeEventListener('visibilitychange', onVisibilityChange);
+                completeCall(data.call_id);
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        
+        // Open phone dialer if phone number is available
+        if (data.phone_number) {
+            progressText.textContent = 'Opening phone dialer...';
+            progressBar.style.width = '100%';
+            
+            // Small delay to ensure UI updates are visible
+            setTimeout(() => {
+                window.location.href = `tel:${data.phone_number}`;
+                callProcessing.style.display = 'none';
+            }, 500);
+        } else {
+            callProcessing.style.display = 'none';
+            alert('Call initiated! Please check your phone to complete the call.');
+        }
+        
+        cleanup();
+    };
+    
+    // Handle call failure
+    const onCallFailed = (data) => {
+        cleanup();
+        callProcessing.style.display = 'none';
+        
+        if (data.error === 'Insufficient balance') {
+            showPaymentModal(data.required, data.current_balance);
+        } else {
+            alert(data.error || 'Failed to initiate call. Please try again.');
+        }
+    };
     
     // Emit socket event to initiate call
     if (typeof socket !== 'undefined') {
+        // Set up event listeners
+        socket.on('call_initiated', onCallInitiated);
+        socket.on('call_ready', onCallReady);
+        socket.on('call_failed', onCallFailed);
+        
+        // Emit the call initiation
         socket.emit('initiate_call', {
             recipient_id: userId,
             call_type: 'audio'  // or 'video' if you implement video calls
         });
-        
-        // Set up response handler
-        const onCallResponse = (data) => {
-            // Clean up the listener
-            socket.off('call_initiated', onCallResponse);
-            
-            setTimeout(() => {
-                callProcessing.style.display = 'none';
-                
-                if (data.success) {
-                    // Update wallet balance display if new_balance is provided
-                    if (data.new_balance !== undefined) {
-                        updateWalletBalance(data.new_balance);
-                    }
-                    
-                    callId = data.call_id;
-                    callStartTime = Date.now();
-                    callInProgress = true;
-                    
-                    // Store call info in localStorage as backup
-                    const callInfo = {
-                        callId: data.call_id,
-                        startTime: Date.now(),
-                        targetPhone: data.phone_number
-                    };
-                    localStorage.setItem('pendingCall', JSON.stringify(callInfo));
-                    
-                    // Set a timeout to complete the call if user doesn't return
-                    callTimeoutId = setTimeout(() => {
-                        if (callInProgress) {
-                            completeCall();
-                        }
-                    }, MAX_CALL_DURATION);
-                    
-                    // Add visibilitychange listener before opening dialer
-                    document.addEventListener('visibilitychange', function onVisibilityChange() {
-                        if (document.visibilityState === 'visible') {
-                            // Remove the listener to prevent multiple calls
-                            document.removeEventListener('visibilitychange', onVisibilityChange);
-                            
-                            // Complete the call process
-                            completeCall(data.call_id);
-                        }
-                    });
-                    
-                    // Open phone dialer with the recipient's phone number
-                    if (data.phone_number) {
-                        window.location.href = `tel:${data.phone_number}`;
-                    } else {
-                        // Fallback to showing a message if phone number isn't available
-                        alert('Call initiated! Please check your phone to complete the call.');
-                    }
-                } else {
-                    // Handle error
-                    if (data.error === 'Insufficient balance') {
-                        // Show payment modal or redirect to wallet page
-                        showPaymentModal(data.required, data.current_balance);
-                    } else {
-                        alert(data.error || 'Failed to initiate call. Please try again.');
-                    }
-                }
-            }, 1000);
-        };
-        
-        // Listen for the response
-        socket.on('call_initiated', onCallResponse);
-        
-        // Set a timeout in case we don't get a response
-        setTimeout(() => {
-            socket.off('call_initiated', onCallResponse);
-            callProcessing.style.display = 'none';
-            alert('Connection timeout. Please try again.');
-        }, 10000); // 10 second timeout
     } else {
+        cleanup();
         callProcessing.style.display = 'none';
         alert('WebSocket connection not available. Please refresh the page and try again.');
     }

@@ -88,7 +88,7 @@
                         <div class="col-md-6">
                             <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
                             <input type="email" class="form-control" id="email" name="email" 
-                                   pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+                                   pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"
                                    value="{{ form_data.email if form_data }}" required>
                             <div class="invalid-feedback">
                                 Please provide a valid email address (e.g., example@domain.com).
@@ -305,16 +305,40 @@ const strengthText = strengthMeter.querySelector('.strength-text');
 const requirements = document.querySelectorAll('.password-requirements div');
 
 function updatePasswordStrength(password) {
-    let strength = 0;
+    if (!password) return false;
+    
     const checks = [
-        { regex: /.{8,}/, index: 0 },  // min 8 chars
-        { regex: /[A-Z]/, index: 1 },   // uppercase
-        { regex: /[a-z]/, index: 2 },   // lowercase
-        { regex: /[0-9]/, index: 3 },   // numbers
-        { regex: /[^A-Za-z0-9]/, index: 4 } // special chars
+        { 
+            regex: /^.{8,}$/, 
+            message: 'At least 8 characters',
+            index: 0
+        },
+        { 
+            regex: /[A-Z]/, 
+            message: 'At least one uppercase letter',
+            index: 1 
+        },
+        { 
+            regex: /[a-z]/, 
+            message: 'At least one lowercase letter',
+            index: 2 
+        },
+        { 
+            regex: /[0-9]/, 
+            message: 'At least one number',
+            index: 3 
+        },
+        { 
+            regex: /[^A-Za-z0-9]/, 
+            message: 'At least one special character',
+            index: 4 
+        }
     ];
 
+    let strength = 0;
     let allPassed = true;
+    let errorMessages = [];
+
     checks.forEach(check => {
         const passed = check.regex.test(password);
         const requirement = requirements[check.index];
@@ -327,12 +351,13 @@ function updatePasswordStrength(password) {
             timesIcon.classList.add('d-none');
         } else {
             allPassed = false;
+            errorMessages.push(check.message);
             checkIcon.classList.add('d-none');
             timesIcon.classList.remove('d-none');
         }
     });
 
-    const percent = (strength / 5) * 100;
+    const percent = (strength / checks.length) * 100;
     strengthBar.style.width = `${percent}%`;
 
     if (allPassed) {
@@ -347,30 +372,35 @@ function updatePasswordStrength(password) {
         } else if (strength < 4) {
             strengthBar.className = 'progress-bar bg-warning';
             strengthText.textContent = 'Medium';
+        } else {
+            strengthBar.className = 'progress-bar bg-info';
+            strengthText.textContent = 'Almost there';
         }
         passwordInput.classList.add('is-invalid');
-        passwordInput.setCustomValidity('Password must meet all requirements');
+        passwordInput.setCustomValidity(errorMessages.join('. ') + '.');
     }
+    
     return allPassed;
 }
 
 passwordInput.addEventListener('input', function() {
-    const isValid = updatePasswordStrength(this.value);
-    if (this.value && !isValid) {
-        this.classList.add('is-invalid');
-    } else {
-        this.classList.remove('is-invalid');
-    }
+    updatePasswordStrength(this.value);
+    // Trigger form validation to update the UI
+    this.reportValidity();
 });
 
     // Form validation
     const form = document.getElementById('registrationForm');
     form.addEventListener('submit', function(event) {
-        // Don't prevent default yet, we'll handle it after validation
+        // Prevent default form submission
+        event.preventDefault();
         event.stopPropagation();
         
         // Reset all custom validity messages
-        form.querySelectorAll('input').forEach(input => input.setCustomValidity(''));
+        form.querySelectorAll('input').forEach(input => {
+            input.setCustomValidity('');
+            input.classList.remove('is-invalid');
+        });
         
         let isValid = true;
         
@@ -381,6 +411,7 @@ passwordInput.addEventListener('input', function() {
             if (!field || !field.value.trim()) {
                 if (field) {
                     field.setCustomValidity('This field is required');
+                    field.classList.add('is-invalid');
                 }
                 isValid = false;
             }
@@ -391,13 +422,19 @@ passwordInput.addEventListener('input', function() {
         const confirmPassword = document.getElementById('confirm_password');
         if (password && confirmPassword && password.value !== confirmPassword.value) {
             confirmPassword.setCustomValidity('Passwords do not match');
+            confirmPassword.classList.add('is-invalid');
             isValid = false;
         }
         
         // Validate password strength
-        if (password && !passwordRegex.test(password.value)) {
-            password.setCustomValidity('Password does not meet requirements');
-            isValid = false;
+        if (password) {
+            const isStrong = updatePasswordStrength(password.value);
+            if (!isStrong) {
+                password.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                password.classList.remove('is-invalid');
+            }
         }
         
         // Check file size for profile picture if it exists
@@ -406,6 +443,7 @@ passwordInput.addEventListener('input', function() {
             const file = profilePic.files[0];
             if (file.size > 5 * 1024 * 1024) { // 5MB
                 profilePic.setCustomValidity('File size must be less than 5MB');
+                profilePic.classList.add('is-invalid');
                 isValid = false;
             }
         }
@@ -413,12 +451,17 @@ passwordInput.addEventListener('input', function() {
         form.classList.add('was-validated');
         
         if (!isValid) {
-            // If form is invalid, prevent submission and show validation messages
-            event.preventDefault();
+            // Show first invalid field
+            const firstInvalid = form.querySelector('.is-invalid');
+            if (firstInvalid) {
+                firstInvalid.focus();
+                firstInvalid.reportValidity();
+            }
             return false;
         }
         
-        // If we get here, form is valid
+        // If we get here, form is valid - submit it
+        form.submit();
         // Show loading state
         const submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) {

@@ -14,18 +14,17 @@
                         {% else %}
                             {% set profile_img_url = url_for('static', filename='img/default-avatar.png') %}
                         {% endif %}
-                        <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none">
+                        <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none profile-image-link">
                             <img src="{{ profile_img_url }}"
-                                 class="rounded-circle border-3 border-white shadow-sm profile-image"
-                                 style="width: 90px; height: 90px; object-fit: cover;"
+                                 class="rounded-circle border-3 border-white shadow-sm profile-image user-profile-image"
                                  alt="{{ user.full_name|default('User') }}"
                                  data-user-id="{{ user.id }}"
-                                 onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/default-avatar.png') }}';">
+                                 data-fallback-src="{{ url_for('static', filename='img/default-avatar.png') }}">
                         </a>
                         <div class="mt-2 text-center">
                             <div class="d-inline-flex align-items-center">
                                 <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none me-2">
-                                    <h5 class="mb-0 text-primary hover-underline profile-name" style="font-size: 0.9rem; color: #6b48ff !important;" data-user-id="{{ user.id }}">{{ user.full_name|default('User')|title }}</h5>
+                                    <h6 class="mb-0 text-primary hover-underline profile-name profile-name-text" style="font-size: 1rem;" data-user-id="{{ user.id }}">{{ user.full_name|default('User')|title }}</h6>
                                 </a>
                                 <span class="online-status-dot {% if user.is_online %}online{% else %}offline{% endif %}" title="{% if user.is_online %}Online{% else %}Offline{% endif %}"></span>
                             </div>
@@ -361,6 +360,17 @@ function fallbackShare(url) {
 </script>
 
 <style>
+.user-profile-image {
+    width: 90px;
+    height: 90px;
+    object-fit: cover;
+}
+
+.profile-name-text {
+    font-size: 0.9rem;
+    color: #6b48ff !important;
+}
+
 .online-status-dot {
     width: 8px;
     height: 8px;
@@ -630,104 +640,145 @@ function refreshProfileCard() {
 
 // Initialize WebSocket listeners
 document.addEventListener('DOMContentLoaded', function() {
-    // Join the user's room
-    if (typeof socket !== 'undefined' && window.userId) {
-        socket.emit('join', { room: 'user_' + window.userId });
-        
-        // Listen for profile updates via WebSocket
-        socket.on('profile_updated', function(data) {
-            if (data && data.user_id && window.userId && data.user_id === parseInt(window.userId, 10)) {
-                refreshProfileCard();
-            }
-        });
-    }
+    // Use whenSocketReady to ensure socket is initialized
+    whenSocketReady(function() {
+        if (window.userId) {
+            safeEmit('join', { user_id: window.userId });
+            
+            // Handle online status
+            safeEmit('user_online', { user_id: window.userId });
+            
+            // Handle page visibility changes
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') {
+                    safeEmit('user_online', { user_id: window.userId });
+                } else {
+                    safeEmit('user_offline', { user_id: window.userId });
+                }
+            });
+        }
+    });
 });
 
 // Function to reinitialize card scripts after content update
 function initializeCardScripts() {
-    // Re-attach any event listeners or initialize components
-    const contactButtons = document.querySelectorAll('.contact-btn');
-    contactButtons.forEach(button => {
-        button.removeEventListener('click', handleContactClick);
-        button.addEventListener('click', handleContactClick);
+    // Re-attach event listeners for contact buttons
+    document.querySelectorAll('.contact-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const contactType = this.getAttribute('data-contact-type');
+            // Use whenSocketReady to ensure socket is available
+            whenSocketReady(() => {
+                handleContactAction(this, contactType);
+            });
+        });
     });
 }
 
 function initiateCall(userId) {
     const processingModal = document.getElementById('processingModal');
     const progressBar = processingModal.querySelector('.progress-bar-fill');
+    const progressText = processingModal.querySelector('p');
     
-    // Show processing modal
+    // Show processing modal with initial message
     processingModal.style.display = 'flex';
     progressBar.style.width = '0%';
+    progressText.textContent = 'Initiating call...';
     
     // Start progress animation
-    setTimeout(() => {
-        progressBar.style.width = '100%';
-    }, 100);
+    const progressInterval = setInterval(() => {
+        const currentWidth = parseFloat(progressBar.style.width) || 0;
+        if (currentWidth < 90) { // Only animate up to 90% to show we're still waiting
+            progressBar.style.width = (currentWidth + 5) + '%';
+        }
+    }, 500);
+    
+    // Set a timeout for the entire call process
+    const callTimeout = setTimeout(() => {
+        clearInterval(progressInterval);
+        processingModal.style.display = 'none';
+        alert('Call request timed out. Please try again.');
+    }, 30000); // 30 second overall timeout
+    
+    // Cleanup function
+    const cleanup = () => {
+        clearInterval(progressInterval);
+        clearTimeout(callTimeout);
+        socket.off('call_initiated', onCallInitiated);
+        socket.off('call_ready', onCallReady);
+        socket.off('call_failed', onCallFailed);
+    };
+    
+    // Handle call initialization
+    const onCallInitiated = (data) => {
+        if (data.status === 'processing') {
+            progressText.textContent = 'Processing your request...';
+            progressBar.style.width = '30%';
+        }
+    };
+    
+    // Handle call ready
+    const onCallReady = (data) => {
+        progressText.textContent = 'Connecting your call...';
+        progressBar.style.width = '70%';
+        
+        // Update wallet balance if provided
+        if (data.new_balance !== undefined) {
+            updateWalletBalance(data.new_balance);
+        }
+        
+        // Add visibility change handler for when user returns from phone app
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                document.removeEventListener('visibilitychange', onVisibilityChange);
+                completeCall(data.call_id);
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        
+        // Open phone dialer if phone number is available
+        if (data.phone_number) {
+            progressText.textContent = 'Opening phone dialer...';
+            progressBar.style.width = '100%';
+            
+            // Small delay to ensure UI updates are visible
+            setTimeout(() => {
+                window.location.href = `tel:${data.phone_number}`;
+                processingModal.style.display = 'none';
+            }, 500);
+        } else {
+            processingModal.style.display = 'none';
+            alert('Call initiated! Please check your phone to complete the call.');
+        }
+        
+        cleanup();
+    };
+    
+    // Handle call failure
+    const onCallFailed = (data) => {
+        cleanup();
+        processingModal.style.display = 'none';
+        
+        if (data.error === 'Insufficient balance') {
+            showPaymentModal(data.required, data.current_balance);
+        } else {
+            alert(data.error || 'Failed to initiate call. Please try again.');
+        }
+    };
     
     // Emit socket event to initiate call
     if (typeof socket !== 'undefined') {
+        // Set up event listeners
+        socket.on('call_initiated', onCallInitiated);
+        socket.on('call_ready', onCallReady);
+        socket.on('call_failed', onCallFailed);
+        
+        // Emit the call initiation
         socket.emit('initiate_call', {
             recipient_id: userId,
             call_type: 'audio'  // or 'video' if you implement video calls
         });
-        
-        // Set up response handler
-        const onCallResponse = (data) => {
-            // Clean up the listener
-            socket.off('call_initiated', onCallResponse);
-            
-            setTimeout(() => {
-                processingModal.style.display = 'none';
-                
-                if (data.success) {
-                    // Update wallet balance display if new_balance is provided
-                    if (data.new_balance !== undefined) {
-                        updateWalletBalance(data.new_balance);
-                    }
-                    
-                    // Add visibilitychange listener before opening dialer
-                    document.addEventListener('visibilitychange', function onVisibilityChange() {
-                        if (document.visibilityState === 'visible') {
-                            // Remove the listener to prevent multiple calls
-                            document.removeEventListener('visibilitychange', onVisibilityChange);
-                            
-                            // Complete the call process
-                            completeCall(data.call_id);
-                        }
-                    });
-                    
-                    // Open phone dialer with the recipient's phone number
-                    // You'll need to ensure the phone number is available in the response
-                    if (data.phone_number) {
-                        window.location.href = `tel:${data.phone_number}`;
-                    } else {
-                        // Fallback to showing a message if phone number isn't available
-                        alert('Call initiated! Please check your phone to complete the call.');
-                    }
-                } else {
-                    // Handle error
-                    if (data.error === 'Insufficient balance') {
-                        // Show payment modal or redirect to wallet page
-                        showPaymentModal(data.required, data.current_balance);
-                    } else {
-                        alert(data.error || 'Failed to initiate call. Please try again.');
-                    }
-                }
-            }, 1000); // Shorter delay since we're using WebSockets
-        };
-        
-        // Listen for the response
-        socket.on('call_initiated', onCallResponse);
-        
-        // Set a timeout in case we don't get a response
-        setTimeout(() => {
-            socket.off('call_initiated', onCallResponse);
-            processingModal.style.display = 'none';
-            alert('Connection timeout. Please try again.');
-        }, 10000); // 10 second timeout
     } else {
+        cleanup();
         processingModal.style.display = 'none';
         alert('WebSocket connection not available. Please refresh the page and try again.');
     }
@@ -890,22 +941,42 @@ function showToast(type, message, bgClass = 'primary') {
     return toast;
 }
 
-// Add CSS for balance update animation
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes balance-update {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.1); color: #198754; }
-        100% { transform: scale(1); }
-    }
-    
-    .balance-updated {
-        display: inline-block;
-        animation: balance-update 0.5s ease-in-out;
-        font-weight: bold;
-    }
-`;
-document.head.appendChild(style);
+// Handle image loading errors (only run once)
+if (!window.profileImagesInitialized) {
+    document.querySelectorAll('.profile-image').forEach(img => {
+        // Only add the listener if it's not already there
+        if (!img.dataset.hasErrorHandler) {
+            img.addEventListener('error', function() {
+                const fallbackSrc = this.getAttribute('data-fallback-src');
+                if (fallbackSrc) {
+                    this.src = fallbackSrc;
+                }
+            });
+            img.dataset.hasErrorHandler = 'true';
+        }
+    });
+    window.profileImagesInitialized = true;
+}
+
+// Add CSS for balance update animation (only run once)
+if (!document.getElementById('balance-update-style')) {
+    const balanceStyle = document.createElement('style');
+    balanceStyle.id = 'balance-update-style';
+    balanceStyle.textContent = `
+        @keyframes balance-update {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); color: #198754; }
+            100% { transform: scale(1); }
+        }
+        
+        .balance-updated {
+            display: inline-block;
+            animation: balance-update 0.5s ease-in-out;
+            font-weight: bold;
+        }
+    `;
+    document.head.appendChild(balanceStyle);
+}
 
 // Listen for wallet update events from the server
 if (typeof socket !== 'undefined') {

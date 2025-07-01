@@ -188,8 +188,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function verifyPayment(response) {
         try {
+            // Get DOM elements
+            const walletBalance = document.getElementById('walletBalance');
+            const transactionList = document.getElementById('transactionList');
+            const noTransactions = document.querySelector('.no-transactions');
+            
             // Show loading state
-            walletBalance.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            if (walletBalance) {
+                walletBalance.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            }
             
             const formData = new FormData();
             formData.append('razorpay_payment_id', response.razorpay_payment_id);
@@ -205,13 +212,33 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-CSRFToken': csrfToken
                 }
             });
-            const verifyData = await verifyResponse.json();
+            
+            let verifyData;
+            try {
+                verifyData = await verifyResponse.json();
+            } catch (e) {
+                console.error('Failed to parse response:', e);
+                throw new Error('Invalid response from server. Please try again.');
+            }
+
+            if (!verifyResponse.ok) {
+                console.error('Server error:', verifyData);
+                throw new Error(verifyData.message || 'Payment verification failed. Please try again.');
+            }
 
             if (verifyData.success) {
+                // Ensure we have valid balance values
+                const startBalance = parseFloat(verifyData.old_balance || 0) || 0;
+                const endBalance = parseFloat(verifyData.new_balance || 0) || 0;
+                
+                // Safely format the amount added
+                const amountAdded = parseFloat(verifyData.amount_added || 0) || 0;
+                const formattedAmount = amountAdded.toFixed(2);
+                
                 // Update wallet balance with animation
-                const startBalance = parseFloat(verifyData.old_balance);
-                const endBalance = parseFloat(verifyData.new_balance);
-                animateBalance(walletBalance, startBalance, endBalance);
+                if (walletBalance) {
+                    animateBalance(walletBalance, startBalance, endBalance);
+                }
                 
                 // Update all wallet balance displays
                 const walletBalanceElements = document.querySelectorAll('.wallet-balance, .badge.bg-success');
@@ -227,7 +254,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     const newList = document.createElement('div');
                     newList.id = 'transactionList';
                     newList.className = 'list-group';
-                    noTransactions.parentElement.appendChild(newList);
+                    const parent = noTransactions.parentElement;
+                    if (parent) {
+                        parent.appendChild(newList);
+                    }
+                }
+                
+                // Ensure transactionList exists
+                if (!transactionList) {
+                    console.error('Transaction list element not found');
+                    return;
                 }
 
                 const now = new Date();
@@ -241,11 +277,15 @@ document.addEventListener('DOMContentLoaded', function() {
                             <h6 class="mb-0">Wallet recharge via Razorpay (ID: ${response.razorpay_payment_id})</h6>
                             <small class="text-muted">${now.toISOString().slice(0, 19).replace('T', ' ')}</small>
                         </div>
-                        <span class="badge bg-success rounded-pill">+₹${verifyData.amount_added.toFixed(2)}</span>
+                        <span class="badge bg-success rounded-pill">+₹${formattedAmount}</span>
                     </div>
                 `;
                 
-                transactionList.insertBefore(txnElement, transactionList.firstChild);
+                if (transactionList.firstChild) {
+                    transactionList.insertBefore(txnElement, transactionList.firstChild);
+                } else {
+                    transactionList.appendChild(txnElement);
+                }
                 
                 // Animate new transaction entry
                 setTimeout(() => {
@@ -261,7 +301,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const successMessage = document.createElement('div');
                 successMessage.className = 'alert alert-success alert-dismissible fade show';
                 successMessage.innerHTML = `
-                    <strong>Success!</strong> ₹${verifyData.amount_added.toFixed(2)} added to your wallet.
+                    <strong>Success!</strong> ₹${formattedAmount} added to your wallet.
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 `;
                 document.querySelector('.container').insertBefore(successMessage, document.querySelector('.container').firstChild);
@@ -275,10 +315,33 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('An error occurred while verifying the payment. Please contact support.');
+            // Show more specific error message to the user
+            const errorMessage = error.message || 'An error occurred while verifying the payment.';
+            alert(errorMessage);
+            
+            // Log the full error for debugging
+            if (error.response) {
+                console.error('Error response:', await error.response.text());
+            }
         } finally {
-            button.disabled = false;
-            button.innerHTML = '<i class="fas fa-plus-circle"></i> Add Money';
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-plus-circle"></i> Add Money';
+            }
+            
+            // Make sure to re-enable any disabled elements
+            const walletBalance = document.getElementById('walletBalance');
+            if (walletBalance && walletBalance.querySelector('.fa-spinner')) {
+                // Reset the balance display if it's still showing a spinner
+                fetch('/wallet-balance')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.balance !== undefined) {
+                            walletBalance.textContent = '₹' + parseFloat(data.balance).toFixed(2);
+                        }
+                    })
+                    .catch(console.error);
+            }
         }
     }
 });

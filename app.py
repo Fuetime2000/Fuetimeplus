@@ -1827,9 +1827,11 @@ def register_client():
             
             # Validate password strength
             password = form_data['password']
-            if not re.match(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$", password):
-                error_msg = 'Password must be at least 8 characters long and contain uppercase, lowercase, number and special character'
+            # Updated regex to be more permissive with special characters
+            if not re.match(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9\s]).{8,}$", password):
+                error_msg = 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character'
                 print(f"Validation error: {error_msg}")
+                print(f"Password being validated: {password}")
                 return render_template('register_client.html',
                                    form_data=form_data,
                                    error=error_msg)
@@ -3028,6 +3030,8 @@ def delete_account():
     except Exception as e:
         db.session.rollback()
         print(f"Error deleting account: {e}")
+        flash('An error occurred while deleting your account. Please try again later.', 'error')
+        return redirect(url_for('account'))
 
 @app.errorhandler(404)
 def not_found_error(error):
@@ -3799,6 +3803,11 @@ def verify_business_otp():
 def help():
     """Help page route"""
     return render_template('help.html')
+
+@app.route('/faq')
+def faq():
+    """Frequently Asked Questions page."""
+    return render_template('faq.html')
 
 @app.route('/sitemap.xml')
 def sitemap():

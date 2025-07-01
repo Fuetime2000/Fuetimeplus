@@ -4,9 +4,266 @@
 
 {% block content %}
 <!-- Toast Message -->
-<div id="location-toast" class="toast"></div>
+<div id="location-toast" class="toast align-items-center text-white bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 20px; right: 20px; z-index: 1100; display: none;">
+    <div class="d-flex">
+        <div class="toast-body"></div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+</div>
 <!-- Location Filter Button -->
 <style>
+.search-filter-container {
+    position: fixed;
+    bottom: 80px;
+    right: 15px;
+    z-index: 500;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.search-btn {
+    background: rgba(255, 255, 255, 0.95);
+    border: 3px solid #4a6cf7;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.search-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.search-btn i {
+    font-size: 20px;
+    color: #4a6cf7;
+}
+
+.search-tooltip {
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2c3e50;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+}
+
+.search-btn:hover .search-tooltip {
+    opacity: 1;
+}
+
+/* Search Overlay */
+.search-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 9999;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.search-overlay.visible {
+    display: block;
+    opacity: 1;
+}
+
+.search-box {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 0 0 16px 16px;
+    padding: 20px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+}
+
+.search-overlay.visible .search-box {
+    transform: translateY(0);
+}
+
+.search-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.search-title {
+    flex: 1;
+    margin: 0;
+    font-weight: 600;
+    color: #333;
+}
+
+.close-search {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #666;
+    padding: 5px;
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+.search-input {
+    height: 50px;
+    font-size: 1rem;
+    border-radius: 8px !important;
+    padding: 10px 15px;
+    box-shadow: none !important;
+}
+
+.search-submit {
+    border-radius: 8px !important;
+    padding: 0 20px;
+    height: 50px;
+    font-weight: 500;
+}
+
+/* Search Suggestions */
+.search-suggestions {
+    margin-top: 20px;
+}
+
+.suggestion-category {
+    margin-bottom: 25px;
+}
+
+.suggestion-title {
+    color: #666;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.suggestion-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.suggestion-item {
+    display: inline-flex;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 20px;
+    padding: 8px 15px;
+    color: #333;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    border: 1px solid #eee;
+}
+
+.suggestion-item:hover {
+    background: #e9ecef;
+    transform: translateY(-1px);
+    text-decoration: none;
+    color: #000;
+}
+
+/* Recent search item */
+.recent-search-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.recent-search-item:last-child {
+    border-bottom: none;
+}
+
+.recent-search-query {
+    flex: 1;
+    color: #333;
+}
+
+.remove-recent-search {
+    color: #999;
+    background: none;
+    border: none;
+    padding: 5px;
+    cursor: pointer;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .search-box {
+        border-radius: 0;
+        padding: 15px;
+    }
+    
+    .search-input {
+        font-size: 1rem;
+    }
+    
+    .search-submit span {
+        display: none;
+    }
+    
+    .search-submit {
+        width: 50px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .suggestion-items {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .suggestion-item {
+        width: 100%;
+        border-radius: 8px;
+    }
+}
+
+.search-form .input-group {
+    width: 100%;
+}
+
+.search-form .form-control {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: none;
+}
+
+.search-form .btn {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    padding: 0.5rem 1rem;
+}
+
 .location-filter {
     position: fixed;
     bottom: 15px;
@@ -108,6 +365,62 @@
 }
 </style>
 
+<div class="search-filter-container">
+    <button type="button" class="search-btn" id="searchToggleBtn">
+        <i class="fas fa-search"></i>
+        <div class="search-tooltip">{{ _('Search') }}</div>
+    </button>
+    <div class="search-overlay" id="searchOverlay">
+        <div class="search-box" id="searchBox">
+            <div class="search-header">
+                <button type="button" class="close-search" id="closeSearch">
+                    <i class="fas fa-times"></i>
+                </button>
+                <h5 class="search-title">{{ _('Search') }}</h5>
+            </div>
+            <form action="{{ url_for('search') }}" method="GET" class="search-form">
+                <div class="input-group mb-3">
+                    <span class="input-group-text bg-white border-end-0">
+                        <i class="fas fa-search text-muted"></i>
+                    </span>
+                    <input type="text" 
+                           class="form-control search-input" 
+                           name="query" 
+                           id="searchInput"
+                           autocomplete="off"
+                           placeholder="{{ _('Search by name, skills, or location') }}" 
+                           required>
+                    <button type="submit" class="btn btn-primary search-submit">
+                        <i class="fas fa-search"></i> {{ _('Search') }}
+                    </button>
+                </div>
+                <div class="search-suggestions" id="searchSuggestions">
+                    <div class="suggestion-category">
+                        <h6 class="suggestion-title">{{ _('Recent Searches') }}</h6>
+                        <div class="suggestion-items" id="recentSearches">
+                            <!-- Recent searches will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="suggestion-category">
+                        <h6 class="suggestion-title">{{ _('Popular Searches') }}</h6>
+                        <div class="suggestion-items">
+                            <a href="{{ url_for('search', query='Electrician') }}" class="suggestion-item">
+                                <i class="fas fa-bolt me-2"></i> Electrician
+                            </a>
+                            <a href="{{ url_for('search', query='Plumber') }}" class="suggestion-item">
+                                <i class="fas fa-wrench me-2"></i> Plumber
+                            </a>
+                            <a href="{{ url_for('search', query='Carpenter') }}" class="suggestion-item">
+                                <i class="fas fa-hammer me-2"></i> Carpenter
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="location-filter">
     <button type="button" class="location-btn" onclick="toggleLocationFilter()">
         <i class="fas fa-location-dot"></i>
@@ -120,32 +433,7 @@
     {{ _('No users found in this area') }}
 </div>
 <div class="container mt-4">
-    <!-- Search Section -->
-    <div class="container-fluid px-0 mb-4">
-        <div class="row">
-            <div class="col-12">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body p-3">
-                        <form action="{{ url_for('search') }}" method="GET" class="d-flex">
-                            <div class="input-group">
-                                <span class="input-group-text bg-white border-end-0 px-3">
-                                    <i class="fas fa-search text-muted"></i>
-                                </span>
-                                <input type="text" class="form-control border-start-0 search-input" id="search-input" name="query" 
-                                       value="{{ request.args.get('query', '') }}" 
-                                       placeholder="{{ _('Search by name, skills, or location') }}" 
-                                       required 
-                                       style="box-shadow: none;">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-search me-2"></i>{{ _('Search') }}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+
 
     <!-- Results Section -->
     <div class="row" id="users-container">
@@ -184,19 +472,26 @@
 <script>
 'use strict';
 
-let isLocationFilterActive = false;
 let currentPage = 1;
 let isLoading = false;
 let hasMore = true;
+let isLocationFilterActive = false;
 
-function showToast(message, duration) {
-    if (!duration) duration = 3000;
-    var toast = document.getElementById('location-toast');
-    toast.textContent = message;
-    toast.style.display = 'block';
-    setTimeout(function() {
-        toast.style.display = 'none';
-    }, duration);
+function showToast(message, duration = 3000) {
+    const toastEl = document.getElementById('location-toast');
+    const toastBody = toastEl.querySelector('.toast-body');
+    
+    // Initialize Bootstrap toast if not already done
+    if (!toastEl._toast) {
+        toastEl._toast = new bootstrap.Toast(toastEl, { autohide: true, delay: duration });
+    }
+    
+    // Update message
+    toastBody.textContent = message;
+    
+    // Show the toast
+    toastEl._toast._config.delay = duration;
+    toastEl._toast.show();
 }
 
 async function loadMoreUsers() {
@@ -258,13 +553,161 @@ window.addEventListener('scroll', handleScroll);
 // Initial load in case the page is too short
 handleScroll();
 
+// Search functionality
+const searchToggleBtn = document.getElementById('searchToggleBtn');
+const searchOverlay = document.getElementById('searchOverlay');
+const closeSearchBtn = document.getElementById('closeSearch');
+const searchInput = document.getElementById('searchInput');
+const recentSearchesContainer = document.getElementById('recentSearches');
+const RECENT_SEARCHES_KEY = 'recentSearches';
+const MAX_RECENT_SEARCHES = 5;
+
+// Toggle search overlay
+function toggleSearchOverlay(show) {
+    if (show) {
+        document.body.style.overflow = 'hidden';
+        searchOverlay.style.display = 'block';
+        // Trigger reflow
+        searchOverlay.offsetHeight;
+        searchOverlay.classList.add('visible');
+        // Focus input after animation starts
+        setTimeout(() => searchInput.focus(), 100);
+        loadRecentSearches();
+    } else {
+        searchOverlay.classList.remove('visible');
+        document.body.style.overflow = '';
+        // Wait for animation to complete before hiding
+        setTimeout(() => {
+            if (!searchOverlay.classList.contains('visible')) {
+                searchOverlay.style.display = 'none';
+            }
+        }, 300);
+    }
+}
+
+// Save search query to recent searches
+function saveToRecentSearches(query) {
+    if (!query.trim()) return;
+    
+    let searches = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]');
+    
+    // Remove if already exists
+    searches = searches.filter(item => item.toLowerCase() !== query.toLowerCase());
+    
+    // Add to beginning
+    searches.unshift(query);
+    
+    // Keep only the most recent searches
+    searches = searches.slice(0, MAX_RECENT_SEARCHES);
+    
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(searches));
+}
+
+// Load recent searches from localStorage
+function loadRecentSearches() {
+    const searches = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]');
+    recentSearchesContainer.innerHTML = '';
+    
+    if (searches.length === 0) {
+        recentSearchesContainer.innerHTML = `
+            <div class="text-muted py-2">
+                {{ _('No recent searches') }}
+            </div>
+        `;
+        return;
+    }
+    
+    searches.forEach((query, index) => {
+        const searchItem = document.createElement('div');
+        searchItem.className = 'recent-search-item';
+        searchItem.innerHTML = `
+            <a href="{{ url_for('search') }}?query=${encodeURIComponent(query)}" class="recent-search-query">
+                <i class="far fa-clock me-2"></i>${query}
+            </a>
+            <button type="button" class="remove-recent-search" data-index="${index}">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        recentSearchesContainer.appendChild(searchItem);
+    });
+    
+    // Add event listeners to remove buttons
+    document.querySelectorAll('.remove-recent-search').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const index = parseInt(this.getAttribute('data-index'));
+            removeRecentSearch(index);
+        });
+    });
+}
+
+// Remove a search from recent searches
+function removeRecentSearch(index) {
+    let searches = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]');
+    if (index >= 0 && index < searches.length) {
+        searches.splice(index, 1);
+        localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(searches));
+        loadRecentSearches();
+    }
+}
+
+// Clear all recent searches
+function clearRecentSearches() {
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+    loadRecentSearches();
+}
+
+// Event listeners
+searchToggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSearchOverlay(true);
+});
+
+closeSearchBtn.addEventListener('click', () => {
+    toggleSearchOverlay(false);
+});
+
+// Close when clicking on overlay (outside search box)
+searchOverlay.addEventListener('click', (e) => {
+    if (e.target === searchOverlay) {
+        toggleSearchOverlay(false);
+    }
+});
+
+// Handle form submission
+const searchForm = document.querySelector('.search-form');
+if (searchForm) {
+    searchForm.addEventListener('submit', function(e) {
+        const query = searchInput.value.trim();
+        if (query) {
+            saveToRecentSearches(query);
+        }
+        // Form will submit normally after this
+    });
+}
+
+// Close on escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && searchOverlay.classList.contains('visible')) {
+        toggleSearchOverlay(false);
+    }
+});
+
+// Initialize
+loadRecentSearches();
+
 async function toggleLocationFilter() {
     const button = document.querySelector('.location-btn');
     const icon = button.querySelector('i');
     const spinner = document.getElementById('location-spinner');
-    const resultsContainer = document.querySelector('.row');
-
-    if (!isLocationFilterActive) {
+    const resultsContainer = document.getElementById('users-container');
+    
+    // Toggle the active state immediately for better UX
+    isLocationFilterActive = !isLocationFilterActive;
+    
+    if (isLocationFilterActive) {
+        // Activating location filter
         if (navigator.geolocation) {
             try {
                 // Show loading state
@@ -272,37 +715,57 @@ async function toggleLocationFilter() {
                 spinner.style.display = 'block';
                 button.disabled = true;
 
+                // Save the current content if not already saved
+                if (!window.originalUsersContent) {
+                    window.originalUsersContent = resultsContainer.innerHTML;
+                }
+
                 // Get user's location
-                var position = await new Promise(function(resolve, reject) {
+                const position = await new Promise((resolve, reject) => {
                     navigator.geolocation.getCurrentPosition(
                         resolve,
                         reject,
                         {
                             enableHighAccuracy: true,
-                            timeout: 5000,
+                            timeout: 10000, // Increased timeout
                             maximumAge: 0
                         }
                     );
                 });
 
                 // Call backend API
-                var lat = position.coords.latitude;
-                var lng = position.coords.longitude;
-                var url = '/filter-by-location?lat=' + encodeURIComponent(lat) + '&lng=' + encodeURIComponent(lng);
-                var response = await fetch(url);
-                var data = await response.json();
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const url = `/filter-by-location?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                
+                const data = await response.json();
 
                 if (data.success) {
-                    resultsContainer.innerHTML = data.html;
-                    if (data.html.trim() === '') {
-                        showToast("{{ _('No users found in this area') }}");
+                    if (data.html && data.html.trim() !== '') {
+                        resultsContainer.innerHTML = data.html;
+                        button.classList.add('active');
+                        showToast("{{ _('Showing users near your location') }}");
+                    } else {
+                        resultsContainer.innerHTML = `
+                            <div class="col-12">
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i> {{ _('No users found in your area. Try expanding your search range.') }}
+                                </div>
+                            </div>`;
+                        isLocationFilterActive = false;
+                        button.classList.remove('active');
                     }
-                    isLocationFilterActive = true;
                 } else {
                     throw new Error(data.error || "{{ _('Failed to filter users by location') }}");
                 }
             } catch (error) {
                 console.error('Location error:', error);
+                isLocationFilterActive = false;
                 showToast(error.message || "{{ _('Could not get your location. Please try again.') }}");
             } finally {
                 // Reset UI
@@ -311,11 +774,19 @@ async function toggleLocationFilter() {
                 button.disabled = false;
             }
         } else {
+            isLocationFilterActive = false;
             showToast("{{ _('Geolocation is not supported by your browser.') }}");
         }
     } else {
-        // Reset to show all users
-        window.location.reload();
+        // Deactivating location filter - restore original content
+        if (window.originalUsersContent) {
+            resultsContainer.innerHTML = window.originalUsersContent;
+            delete window.originalUsersContent;
+        } else {
+            // If for some reason we don't have the original content, reload the page
+            window.location.reload();
+        }
+        button.classList.remove('active');
     }
 }
 </script>

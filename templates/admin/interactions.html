@@ -1,6 +1,7 @@
 {% extends "admin/base.html" %}
 
-{% block extra_css %}
+{% block styles %}
+{{ super() }}
 <style>
     /* Card Styles */
     .stat-card {
@@ -213,7 +214,7 @@
 </style>
 {% endblock %}
 
-{% block content %}
+{% block admin_content %}
 <div class="container-fluid py-4 fade-in">
     <h2 class="mb-4 d-flex align-items-center">
         <span class="bg-gradient-primary p-3 rounded-circle me-3 text-white">
@@ -236,7 +237,7 @@
                             <p class="card-text mb-0">Total profile visits</p>
                         </div>
                     </div>
-                    <div class="interaction-count">{{ stats.profile_views|length }}</div>
+                    <div class="interaction-count">{{ interaction_stats.profile_views|length }}</div>
                 </div>
             </div>
         </div>
@@ -252,7 +253,7 @@
                             <p class="card-text mb-0">Total messages exchanged</p>
                         </div>
                     </div>
-                    <div class="interaction-count">{{ stats.messages|length }}</div>
+                    <div class="interaction-count">{{ interaction_stats.messages|length }}</div>
                 </div>
             </div>
         </div>
@@ -268,7 +269,7 @@
                             <p class="card-text mb-0">Total calls made</p>
                         </div>
                     </div>
-                    <div class="interaction-count">{{ stats.calls|length }}</div>
+                    <div class="interaction-count">{{ interaction_stats.calls|length }}</div>
                 </div>
             </div>
         </div>
@@ -279,17 +280,17 @@
             <ul class="nav nav-tabs" id="interactionTabs" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link active" id="profile-views-tab" data-bs-toggle="tab" href="#profile-views" role="tab">
-                        Profile Views <span class="badge bg-primary">{{ stats.profile_views|length }}</span>
+                        Profile Views <span class="badge bg-primary">{{ interaction_stats.profile_views|length }}</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" id="messages-tab" data-bs-toggle="tab" href="#messages" role="tab">
-                        Messages <span class="badge bg-primary">{{ stats.messages|length }}</span>
+                        Messages <span class="badge bg-success">{{ interaction_stats.messages|length }}</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" id="calls-tab" data-bs-toggle="tab" href="#calls" role="tab">
-                        Calls <span class="badge bg-primary">{{ stats.calls|length }}</span>
+                        Calls <span class="badge bg-info">{{ interaction_stats.calls|length }}</span>
                     </a>
                 </li>
             </ul>
@@ -310,7 +311,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for view in stats.profile_views %}
+                                        {% for view in interaction_stats.profile_views %}
                                         <tr>
                                             <td>
                                                 <a href="{{ url_for('profile', user_id=view.viewer.id) }}" class="user-link">
@@ -354,20 +355,20 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for msg in stats.messages %}
+                                        {% for msg in interaction_stats.messages %}
                                         <tr>
                                             <td>
                                                 <a href="{{ url_for('profile', user_id=msg.sender.id) }}" class="user-link">
-                                                    <img src="{{ url_for('static', filename=msg.sender.photo) if msg.sender.photo else url_for('static', filename='img/default-avatar.svg') }}" 
+                                                    <img src="{{ url_for('static', filename=msg.sender.photo) if msg.sender and msg.sender.photo else url_for('static', filename='img/default-avatar.svg') }}" 
                                                          class="rounded-circle me-2" width="30" height="30">
-                                                    {{ msg.sender.full_name }}
+                                                    {{ msg.sender.full_name if msg.sender else 'Unknown User' }}
                                                 </a>
                                             </td>
                                             <td>
-                                                <a href="{{ url_for('profile', user_id=msg.recipient.id) }}" class="user-link">
-                                                    <img src="{{ url_for('static', filename=msg.recipient.photo) if msg.recipient.photo else url_for('static', filename='img/default-avatar.svg') }}" 
+                                                <a href="{{ url_for('profile', user_id=msg.receiver.id) }}" class="user-link">
+                                                    <img src="{{ url_for('static', filename=msg.receiver.photo) if msg.receiver and msg.receiver.photo else url_for('static', filename='img/default-avatar.svg') }}" 
                                                          class="rounded-circle me-2" width="30" height="30">
-                                                    {{ msg.recipient.full_name }}
+                                                    {{ msg.receiver.full_name if msg.receiver else 'Unknown User' }}
                                                 </a>
                                             </td>
                                             <td class="timestamp">
@@ -390,75 +391,46 @@
                             <div class="table-container">
                                 <div class="table-responsive">
                                     <table class="table table-hover mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th><i class="fas fa-phone me-2"></i>Caller</th>
-                                            <th><i class="fas fa-user me-2"></i>Recipient</th>
-                                            <th><i class="fas fa-clock me-2"></i>Timestamp</th>
-                                            <th><i class="fas fa-hourglass-end me-2"></i>Duration</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for call in stats.calls %}
-                                        <tr>
-                                            <td>
-                                                <a href="{{ url_for('profile', user_id=call.caller.id) }}" class="user-link">
-                                                    <img src="{{ url_for('static', filename=call.caller.photo) if call.caller.photo else url_for('static', filename='img/default-avatar.svg') }}" 
-                                                         class="rounded-circle me-2" width="30" height="30">
-                                                    {{ call.caller.full_name }}
-                                                </a>
-                                            </td>
-                                            <td>
-                                                <a href="{{ url_for('profile', user_id=call.recipient.id) }}" class="user-link">
-                                                    <img src="{{ url_for('static', filename=call.recipient.photo) if call.recipient.photo else url_for('static', filename='img/default-avatar.svg') }}" 
-                                                         class="rounded-circle me-2" width="30" height="30">
-                                                    {{ call.recipient.full_name }}
-                                                </a>
-                                            </td>
-                                            <td class="timestamp">
-                                                <i class="far fa-clock me-1"></i>
-                                                {{ call.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
-                                            </td>
-                                            <td>
-                                                <i class="fas fa-hourglass-end me-1"></i>
-                                                {{ call.duration }} minutes
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                                    <thead>
-                                        <tr>
-                                            <th><i class="fas fa-phone me-2"></i>Caller</th>
-                                            <th><i class="fas fa-user me-2"></i>Called</th>
-                                            <th><i class="fas fa-clock me-2"></i>Timestamp</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for call in stats.calls %}
-                                        <tr>
-                                            <td>
-                                                <a href="{{ url_for('profile', user_id=call.viewer.id) }}" class="user-link">
-                                                    <img src="{{ url_for('static', filename=call.viewer.photo) if call.viewer.photo else url_for('static', filename='img/default-avatar.svg') }}" 
-                                                         class="rounded-circle me-2" width="30" height="30">
-                                                    {{ call.viewer.full_name }}
-                                                </a>
-                                            </td>
-                                            <td>
-                                                <a href="{{ url_for('profile', user_id=call.viewed.id) }}" class="user-link">
-                                                    <img src="{{ url_for('static', filename=call.viewed.photo) if call.viewed.photo else url_for('static', filename='img/default-avatar.svg') }}" 
-                                                         class="rounded-circle me-2" width="30" height="30">
-                                                    {{ call.viewed.full_name }}
-                                                </a>
-                                            </td>
-                                            <td class="timestamp">
-                                                <i class="far fa-clock me-1"></i>
-                                                {{ call.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
+                                        <thead>
+                                            <tr>
+                                                <th><i class="fas fa-phone me-2"></i>Caller</th>
+                                                <th><i class="fas fa-user me-2"></i>Recipient</th>
+                                                <th><i class="fas fa-clock me-2"></i>Timestamp</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for call in interaction_stats.calls %}
+                                            <tr>
+                                                <td>
+                                                    <a href="{{ url_for('profile', user_id=call.caller.id) }}" class="user-link">
+                                                        <img src="{{ url_for('static', filename=call.caller.photo) if call.caller and call.caller.photo else url_for('static', filename='img/default-avatar.svg') }}" 
+                                                             class="rounded-circle me-2" width="30" height="30">
+                                                        {{ call.caller.full_name if call.caller else 'Unknown User' }}
+                                                    </a>
+                                                </td>
+                                                <td>
+                                                    <a href="{{ url_for('profile', user_id=call.callee.id) }}" class="user-link">
+                                                        <img src="{{ url_for('static', filename=call.callee.photo) if call.callee and call.callee.photo else url_for('static', filename='img/default-avatar.svg') }}" 
+                                                             class="rounded-circle me-2" width="30" height="30">
+                                                        {{ call.callee.full_name if call.callee else 'Unknown User' }}
+                                                    </a>
+                                                </td>
+                                                <td class="timestamp">
+                                                    <i class="far fa-clock me-1"></i>
+                                                    {{ call.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                                                </td>
+                                            </tr>
+                                            {% else %}
+                                            <tr>
+                                                <td colspan="3" class="text-center py-4">
+                                                    <i class="fas fa-phone-slash fa-3x text-muted mb-3"></i>
+                                                    <p class="text-muted">No calls recorded yet</p>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -467,4 +439,24 @@
         </div>
     </div>
 </div>
+
+{% block extra_js %}
+<script>
+// Initialize tooltips
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+});
+
+// Initialize tabs
+var tabElms = document.querySelectorAll('button[data-bs-toggle="tab"]')
+tabElms.forEach(function(tabEl) {
+    tabEl.addEventListener('shown.bs.tab', function (event) {
+        event.target // newly activated tab
+        event.relatedTarget // previous active tab
+    });
+});
+</script>
+{% endblock %}
+
 {% endblock %}

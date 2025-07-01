@@ -525,12 +525,142 @@ main {
 }
 
 /* Footer Styles */
-footer {
-    background-color: #f8f9fa;
-    border-top: 1px solid #dee2e6;
-    margin-top: 3rem;
-    padding: 2rem 0;
+.footer {
+    background-color: #1a1e21;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
 }
+
+.footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #4e54c8, #8f94fb);
+}
+
+.footer h5 {
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    position: relative;
+    display: inline-block;
+}
+
+.footer ul li {
+    margin-bottom: 0.75rem;
+    transition: all 0.3s ease;
+}
+
+.footer ul li a {
+    color: #adb5bd;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    display: block;
+    position: relative;
+    padding-left: 0;
+}
+
+.footer ul li a:hover {
+    color: #fff;
+    transform: translateX(5px);
+}
+
+.footer ul li a:hover i {
+    opacity: 1;
+    visibility: visible;
+}
+
+.footer .social-links a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    margin-right: 10px;
+    color: #fff;
+    transition: all 0.3s ease;
+}
+
+.footer .social-links a:hover {
+    background: #4e54c8;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.payment-icon {
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.payment-icon:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    border-color: #4e54c8;
+}
+
+.bg-primary-soft {
+    background-color: rgba(78, 84, 200, 0.1);
+    transition: all 0.3s ease;
+}
+
+.bg-primary-soft:hover {
+    background-color: rgba(78, 84, 200, 0.2);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .footer {
+        text-align: center;
+    }
+    
+    .footer h5::after {
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    
+    .footer ul {
+        margin-bottom: 2rem;
+    }
+    
+    .payment-methods {
+        justify-content: center !important;
+    }
+    
+    .security-badge {
+        text-align: center;
+        justify-content: center;
+    }
+}
+
+/* Animation for links */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.footer .col-lg-4, 
+.footer .col-lg-2, 
+.footer .col-md-6 {
+    animation: fadeInUp 0.5s ease forwards;
+    opacity: 0;
+}
+
+.footer .col-lg-4:nth-child(1) { animation-delay: 0.1s; }
+.footer .col-lg-2:nth-child(2) { animation-delay: 0.2s; }
+.footer .col-lg-2:nth-child(3) { animation-delay: 0.3s; }
+.footer .col-lg-4:nth-child(4) { animation-delay: 0.4s; }
 
 /* User status indicators */
 .user-status {
@@ -591,23 +721,65 @@ footer img {
     object-fit: contain;
     margin-bottom: 0.5rem;
     opacity: 0.9;
+    transition: all 0.3s ease;
 }
 
-.footer {
-    margin-top: auto;
+footer img:hover {
+    opacity: 1;
+    transform: scale(1.05);
 }
 
-.footer a {
-    color: white;
-    text-decoration: none;
+/* Newsletter form */
+.newsletter-form {
+    position: relative;
+    margin-top: 20px;
 }
 
-.footer a:hover {
-    color: #007bff;
+.newsletter-form input {
+    width: 100%;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 30px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    outline: none;
+}
+
+.newsletter-form button {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    bottom: 5px;
+    background: #4e54c8;
+    border: none;
+    color: #fff;
+    border-radius: 30px;
+    padding: 0 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.newsletter-form button:hover {
+    background: #3a3f9e;
+    transform: translateY(-2px);
+}
+
+/* Scrollbar styling for the footer */
+.footer::-webkit-scrollbar {
+    width: 5px;
+}
+
+.footer::-webkit-scrollbar-track {
+    background: #1a1e21;
+}
+
+.footer::-webkit-scrollbar-thumb {
+    background: #4e54c8;
+    border-radius: 10px;
 }
 
 .social-links a {
-    font-size: 1.5rem;
+    font-size: 1rem;
     transition: color 0.2s;
 }
 

@@ -536,15 +536,25 @@ function resendOTP() {
     if (resendBtn.disabled) return;
     
     resendBtn.disabled = true;
-    const csrfToken = document.querySelector('input[name=csrf_token]').value;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || 
+                     document.querySelector('input[name="csrf_token"]')?.value;
+    
+    if (!csrfToken) {
+        console.error('CSRF token not found');
+        showToast('Security error. Please refresh the page and try again.', 'error');
+        resendBtn.disabled = false;
+        return;
+    }
     
     fetch('/resend-otp', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
         },
-        credentials: 'same-origin'
+        credentials: 'same-origin',
+        body: JSON.stringify({})
     })
     .then(response => response.json().then(data => ({ status: response.status, data })))
     .then(({ status, data }) => {
