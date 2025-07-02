@@ -4479,7 +4479,7 @@ if __name__ == '__main__':
         sys.exit(1)
     
     # Socket.IO event handlers (optional)
-USE_WEBSOCKETS = False  # Set to False to disable WebSockets
+USE_WEBSOCKETS = True  # Set to False to disable WebSockets
 
 if USE_WEBSOCKETS:
     @socketio.on('connect')
