@@ -705,15 +705,18 @@ async function toggleLocationFilter() {
     
     // Toggle the active state immediately for better UX
     isLocationFilterActive = !isLocationFilterActive;
+    console.log('Location filter active:', isLocationFilterActive);
     
     if (isLocationFilterActive) {
         // Activating location filter
         if (navigator.geolocation) {
             try {
                 // Show loading state
+                console.log('Getting user location...');
                 icon.style.display = 'none';
                 spinner.style.display = 'block';
                 button.disabled = true;
+                button.setAttribute('aria-busy', 'true');
 
                 // Save the current content if not already saved
                 if (!window.originalUsersContent) {
@@ -769,9 +772,11 @@ async function toggleLocationFilter() {
                 showToast(error.message || "{{ _('Could not get your location. Please try again.') }}");
             } finally {
                 // Reset UI
+                console.log('Resetting UI state');
                 spinner.style.display = 'none';
                 icon.style.display = 'block';
                 button.disabled = false;
+                button.removeAttribute('aria-busy');
             }
         } else {
             isLocationFilterActive = false;
@@ -779,11 +784,14 @@ async function toggleLocationFilter() {
         }
     } else {
         // Deactivating location filter - restore original content
+        console.log('Deactivating location filter');
         if (window.originalUsersContent) {
             resultsContainer.innerHTML = window.originalUsersContent;
             delete window.originalUsersContent;
+            showToast("{{ _('Showing all users') }}");
         } else {
             // If for some reason we don't have the original content, reload the page
+            console.log('No original content found, reloading page');
             window.location.reload();
         }
         button.classList.remove('active');
