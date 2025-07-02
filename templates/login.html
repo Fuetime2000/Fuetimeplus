@@ -10,6 +10,9 @@
         --light: #f8f9fc;
         --white: #ffffff;
         --shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+        --error-color: #e74a3b;
+        --warning-color: #f6c23e;
+        --success-color: #1cc88a;
     }
     
     body {
@@ -53,6 +56,56 @@
     .form-control:focus, .form-select:focus {
         border-color: #bac8f3;
         box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+    }
+    
+    .form-control.is-invalid, .was-validated .form-control:invalid {
+        border-color: var(--error-color);
+        padding-right: calc(1.5em + 0.75rem);
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23e74a3b'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23e74a3b' stroke='none'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right calc(0.375em + 0.1875rem) center;
+        background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+    }
+    
+    .form-control.is-invalid:focus, .was-validated .form-control:invalid:focus {
+        border-color: var(--error-color);
+        box-shadow: 0 0 0 0.2rem rgba(231, 74, 59, 0.25);
+    }
+    
+    .invalid-feedback {
+        display: block;
+        width: 100%;
+        margin-top: 0.25rem;
+        font-size: 0.875em;
+        color: var(--error-color);
+    }
+    
+    .alert {
+        border: none;
+        border-left: 4px solid transparent;
+        border-radius: 0.5rem;
+    }
+    
+    .alert-danger {
+        background-color: #f8d7da;
+        border-left-color: var(--error-color);
+        color: #721c24;
+    }
+    
+    .alert-warning {
+        background-color: #fff3cd;
+        border-left-color: var(--warning-color);
+        color: #856404;
+    }
+    
+    .alert-success {
+        background-color: #d4edda;
+        border-left-color: var(--success-color);
+        color: #155724;
+    }
+    
+    .alert-dismissible .btn-close {
+        padding: 1rem 1rem;
     }
     
     .btn-primary {
@@ -133,15 +186,38 @@
                     {% with messages = get_flashed_messages(with_categories=true) %}
                         {% if messages %}
                             {% for category, message in messages %}
-                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                                    {{ message }}
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                <div class="alert alert-{{ category }} alert-dismissible fade show d-flex align-items-center" role="alert">
+                                    <i class="fas {% if category == 'success' %}fa-check-circle{% elif category == 'warning' %}fa-exclamation-triangle{% else %}fa-exclamation-circle{% endif %} me-2"></i>
+                                    <div>
+                                        <strong>{% if category == 'success' %}Success!{% elif category == 'warning' %}Warning:{% else %}Error:{% endif %}</strong>
+                                        {{ message }}
+                                    </div>
+                                    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
                                 </div>
                             {% endfor %}
                         {% endif %}
                     {% endwith %}
                     
-                    <form method="POST" action="{{ url_for('login') }}" id="loginForm" class="needs-validation" novalidate>
+                    {% if form and form.errors %}
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <div>
+                                    <strong>Please fix the following errors:</strong>
+                                    <ul class="mb-0 mt-2">
+                                        {% for field, errors in form.errors.items() %}
+                                            {% for error in errors %}
+                                                <li>{{ form[field].label.text }}: {{ error }}</li>
+                                            {% endfor %}
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endif %}
+                    
+                    <form method="POST" action="{{ url_for('login') }}" id="loginForm" class="needs-validation" novalidate onsubmit="return validateForm()">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
                         
@@ -219,40 +295,115 @@
 {% block scripts %}
 {{ super() }}
 <script>
-    // Form validation
-    (function () {
-        'use strict'
-        
-        // Fetch all the forms we want to apply custom Bootstrap validation styles to
-        var forms = document.querySelectorAll('.needs-validation')
-        
-        // Loop over them and prevent submission
-        Array.prototype.slice.call(forms)
-            .forEach(function (form) {
-                form.addEventListener('submit', function (event) {
-                    if (!form.checkValidity()) {
-                        event.preventDefault()
-                        event.stopPropagation()
-                    }
-                    
-                    form.classList.add('was-validated')
-                }, false)
-            })
-    })()
-    
-    // Add CSRF token to all AJAX requests
-    document.addEventListener('DOMContentLoaded', function() {
+    // Client-side form validation
+    function validateForm() {
         const form = document.getElementById('loginForm');
-        if (form) {
-            form.addEventListener('submit', function() {
-                // Disable the submit button to prevent double submission
-                const submitButton = document.getElementById('loginButton');
-                if (submitButton) {
-                    submitButton.disabled = true;
-                    submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Signing in...';
+        const email = document.getElementById('email');
+        const password = document.getElementById('password');
+        let isValid = true;
+        
+        // Reset previous error states
+        document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        document.querySelectorAll('.invalid-feedback').forEach(el => el.remove());
+        
+        // Validate email
+        if (!email.value) {
+            showError(email, 'Email is required');
+            isValid = false;
+        } else if (!/\S+@\S+\.\S+/.test(email.value)) {
+            showError(email, 'Please enter a valid email address');
+            isValid = false;
+        }
+        
+        // Validate password
+        if (!password.value) {
+            showError(password, 'Password is required');
+            isValid = false;
+        } else if (password.value.length < 6) {
+            showError(password, 'Password must be at least 6 characters long');
+            isValid = false;
+        }
+        
+        return isValid;
+    }
+    
+    function showError(input, message) {
+        input.classList.add('is-invalid');
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'invalid-feedback';
+        errorDiv.textContent = message;
+        input.parentNode.appendChild(errorDiv);
+    }
+    
+    // Add input event listeners to clear error state when user starts typing
+    document.addEventListener('DOMContentLoaded', function() {
+        const inputs = document.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('input', function() {
+                if (this.classList.contains('is-invalid')) {
+                    this.classList.remove('is-invalid');
+                    const errorMsg = this.parentNode.querySelector('.invalid-feedback');
+                    if (errorMsg) {
+                        errorMsg.remove();
+                    }
                 }
             });
-        }
+        });
+    });
+</script>
+<script>
+    // Form validation and submission handler
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('loginForm');
+        if (!form) return;
+        
+        // Remove any existing submit event listeners to prevent duplicates
+        const newForm = form.cloneNode(true);
+        form.parentNode.replaceChild(newForm, form);
+        
+        // Add new submit handler
+        newForm.addEventListener('submit', function(event) {
+            // First, run our custom validation
+            const isValid = validateForm();
+            
+            // If validation fails, prevent form submission
+            if (!isValid) {
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+            
+            // If we get here, validation passed - show loading state
+            const submitButton = document.getElementById('loginButton');
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Signing in...';
+            }
+            
+            // Allow the form to submit
+            return true;
+        });
+        
+        // Add Bootstrap's validation classes on form submission
+        newForm.addEventListener('submit', function(event) {
+            if (!event.defaultPrevented) {
+                newForm.classList.add('was-validated');
+            }
+        });
+        
+        // Clear validation errors when user starts typing
+        const inputs = newForm.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('input', function() {
+                if (this.classList.contains('is-invalid')) {
+                    this.classList.remove('is-invalid');
+                    const errorMsg = this.parentNode.querySelector('.invalid-feedback');
+                    if (errorMsg) {
+                        errorMsg.remove();
+                    }
+                }
+            });
+        });
     });
 </script>
 {% endblock %}

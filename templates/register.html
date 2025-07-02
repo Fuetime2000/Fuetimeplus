@@ -3,14 +3,56 @@
 {% block title %}Register - FueTime{% endblock %}
 
 {% block content %}
+<!-- Tooltip element -->
+<div id="fieldTooltip" class="field-tooltip"></div>
 <!-- Include translations file -->
 <script src="{{ url_for('static', filename='js/register_translations.js') }}"></script>
+
+<style>
+    .field-tooltip {
+        position: absolute;
+        background-color: #2c3e50;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 14px;
+        z-index: 1000;
+        max-width: 250px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        display: none;
+        animation: fadeIn 0.2s ease-in-out;
+    }
+    
+    .field-tooltip::after {
+        content: '';
+        position: absolute;
+        width: 0;
+        height: 0;
+        border-left: 8px solid transparent;
+        border-right: 8px solid transparent;
+        border-top: 8px solid #2c3e50;
+        bottom: -8px;
+        left: 20px;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .form-floating, .form-group {
+        position: relative;
+    }
+</style>
 <div class="container-fluid register-page py-5">
     <div class="row justify-content-center align-items-center">
         <div class="col-12 col-md-10 col-lg-8 col-xl-6">
             <div class="card shadow-lg border-0 rounded-4 overflow-hidden">
                 <div class="card-header bg-white text-center py-4 border-0">
-                    <div class="d-flex justify-content-end mb-3">
+                    <div class="d-flex justify-content-between mb-3">
+                        <a href="{{ url_for('register_client') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-building"></i> Register as Business Client
+                        </a>
                         <button type="button" class="btn btn-outline-primary btn-sm" id="toggleLanguage">
                             <i class="fas fa-language"></i> हिंदी में देखें
                         </button>
@@ -286,13 +328,9 @@
                                 <i class="fas fa-user-plus me-2"></i>Create My Profile
                             </button>
                             <div class="login-link text-center mt-4">
-                                <p class="mb-2">
+                                <p class="mb-0">
                                     Already have an account? 
                                     <a href="{{ url_for('login') }}" class="text-decoration-none fw-bold">Login here</a>
-                                </p>
-                                <p class="mb-0">
-                                    Registering as a business client? 
-                                    <a href="{{ url_for('register_client') }}" class="text-decoration-none fw-bold">Click here</a>
                                 </p>
                             </div>
                         </div>
@@ -306,37 +344,141 @@
 </div>
 
 <script>
-// Language toggle functionality
-let currentLang = 'en';
-const toggleBtn = document.getElementById('toggleLanguage');
+// Wait for the DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Tooltip messages for each field
+    const fieldMessages = {
+        'full_name': 'Enter your full name as per your ID proof (only letters, spaces, and dots)',
+        'date_of_birth': 'Select your date of birth (must be at least 18 years old)',
+        'email': 'Enter a valid email address that you have access to',
+        'phone': 'Enter your 10-digit mobile number',
+        'work': 'Enter your current profession or job title',
+        'experience': 'Select your total years of work experience',
+        'education': 'Enter your highest education qualification',
+        'work_experience': 'List companies you\'ve worked at (comma-separated)',
+        'live_location': 'Enter your current residential area',
+        'current_location': 'Click the button to automatically detect your current location',
+        'password': 'Create a strong password (minimum 8 characters with letters and numbers)',
+        'confirm_password': 'Re-enter your password to confirm',
+        'photo': 'Upload a clear profile picture (JPG, PNG, or JPEG)'
+    };
 
-function updateFormLanguage(lang) {
-    const elements = document.querySelectorAll('[data-translate]');
-    elements.forEach(el => {
-        const key = el.getAttribute('data-translate');
-        if (el.tagName === 'LABEL' || el.tagName === 'OPTION') {
-            el.textContent = translations[lang][key];
-        } else if (el.classList.contains('invalid-feedback')) {
-            el.textContent = translations[lang]['validation_' + key];
+    // Show tooltip for input field
+    function showTooltip(input, message) {
+        const tooltip = document.getElementById('fieldTooltip');
+        if (!tooltip || !message) return;
+        
+        // Position the tooltip
+        const rect = input.getBoundingClientRect();
+        tooltip.textContent = message;
+        tooltip.style.display = 'block';
+        tooltip.style.top = (window.scrollY + rect.top - 45) + 'px';
+        tooltip.style.left = rect.left + 'px';
+    }
+
+    // Hide tooltip
+    function hideTooltip() {
+        const tooltip = document.getElementById('fieldTooltip');
+        if (tooltip) {
+            tooltip.style.display = 'none';
         }
-    });
+    }
 
-    // Update button text
-    toggleBtn.innerHTML = `<i class="fas fa-language"></i> ${lang === 'en' ? 'हिंदी में देखें' : 'View in English'}`;
+    // Initialize tooltips for all form fields
+    const form = document.getElementById('registrationForm');
+    if (form) {
+        const inputs = form.querySelectorAll('input, select, textarea');
+        
+        // Add data-translate attributes to inputs that don't have them
+        inputs.forEach(input => {
+            const fieldName = input.id || input.name;
+            if (fieldName && !input.hasAttribute('data-translate')) {
+                input.setAttribute('data-translate', fieldName);
+            }
+        });
+        
+        inputs.forEach(input => {
+            const fieldName = input.id || input.name;
+            if (fieldName && fieldMessages[fieldName]) {
+                // Show tooltip on focus
+                input.addEventListener('focus', function(e) {
+                    showTooltip(e.target, fieldMessages[fieldName]);
+                });
+                
+                // Hide tooltip on blur
+                input.addEventListener('blur', hideTooltip);
+            }
+        });
+        
+        // Hide tooltip when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!form.contains(e.target)) {
+                hideTooltip();
+            }
+        });
+    }
 
-    // Update Get Location button text
-    const getLocationBtn = document.getElementById('getLocationBtn');
-    getLocationBtn.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${translations[lang]['get_location']}`;
+    let currentLang = 'en';
+    const toggleBtn = document.getElementById('toggleLanguage');
 
-    // Update submit button text
-    const submitBtn = document.querySelector('button[type="submit"]');
-    submitBtn.innerHTML = `<i class="fas fa-user-plus me-2"></i>${translations[lang]['create_profile']}`;
-}
+    function updateFormLanguage(lang) {
+        // Update all elements with data-translate attribute
+        const elements = document.querySelectorAll('[data-translate]');
+        elements.forEach(el => {
+            const key = el.getAttribute('data-translate');
+            if (translations[lang] && translations[lang][key]) {
+                if (el.tagName === 'LABEL') {
+                    el.textContent = translations[lang][key];
+                } else if (el.tagName === 'OPTION') {
+                    el.textContent = translations[lang][key] || el.textContent;
+                } else if (el.classList.contains('invalid-feedback')) {
+                    const validationKey = 'validation_' + key.split('_').slice(1).join('_');
+                    el.textContent = translations[lang][validationKey] || el.textContent;
+                } else if (el.placeholder) {
+                    el.placeholder = translations[lang][key] || el.placeholder;
+                }
+            }
+        });
 
-toggleBtn.addEventListener('click', function() {
-    currentLang = currentLang === 'en' ? 'hi' : 'en';
-    updateFormLanguage(currentLang);
-});
+        // Update button text
+        if (toggleBtn) {
+            toggleBtn.innerHTML = `<i class="fas fa-language"></i> ${lang === 'en' ? 'हिंदी में देखें' : 'View in English'}`;
+        }
+
+        // Update Get Location button text
+        const getLocationBtn = document.getElementById('getLocationBtn');
+        if (getLocationBtn && translations[lang] && translations[lang]['get_location']) {
+            getLocationBtn.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${translations[lang]['get_location']}`;
+        }
+
+        // Update submit button text
+        const submitBtn = document.querySelector('button[type="submit"]');
+        if (submitBtn && translations[lang] && translations[lang]['create_profile']) {
+            submitBtn.innerHTML = `<i class="fas fa-user-plus me-2"></i>${translations[lang]['create_profile']}`;
+        }
+        
+        // Update field placeholders
+        const inputs = form.querySelectorAll('input, textarea, select');
+        inputs.forEach(input => {
+            const fieldName = input.id || input.name;
+            if (fieldName && translations[lang] && translations[lang][fieldName]) {
+                if (input.placeholder) {
+                    input.placeholder = translations[lang][fieldName];
+                }
+                if (input.title) {
+                    input.title = translations[lang][fieldName];
+                }
+            }
+        });
+    }
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function() {
+            currentLang = currentLang === 'en' ? 'hi' : 'en';
+            updateFormLanguage(currentLang);
+        });
+    }
+}); // End of DOMContentLoaded
 
 // Handle user type selection
 function toggleUserFields() {

@@ -333,7 +333,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const walletBalance = document.getElementById('walletBalance');
             if (walletBalance && walletBalance.querySelector('.fa-spinner')) {
                 // Reset the balance display if it's still showing a spinner
-                fetch('/wallet-balance')
+                fetch('/wallet')
                     .then(response => response.json())
                     .then(data => {
                         if (data.balance !== undefined) {
