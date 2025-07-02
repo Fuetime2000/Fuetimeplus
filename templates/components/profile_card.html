@@ -638,27 +638,44 @@ function refreshProfileCard() {
     }
 }
 
-// Initialize WebSocket listeners
-document.addEventListener('DOMContentLoaded', function() {
+// Initialize WebSocket listeners when the page loads
+function initializeWebSocketListeners() {
+    // Ensure window.whenSocketReady is available
+    if (typeof window.whenSocketReady !== 'function') {
+        console.warn('whenSocketReady not available yet, will retry...');
+        setTimeout(initializeWebSocketListeners, 500);
+        return;
+    }
+
     // Use whenSocketReady to ensure socket is initialized
-    whenSocketReady(function() {
+    window.whenSocketReady(function() {
         if (window.userId) {
-            safeEmit('join', { user_id: window.userId });
+            console.log('Initializing WebSocket listeners for user:', window.userId);
             
-            // Handle online status
-            safeEmit('user_online', { user_id: window.userId });
+            // Join user's room
+            if (window.safeEmit) {
+                window.safeEmit('join', { user_id: window.userId });
+                window.safeEmit('user_online', { user_id: window.userId });
+            }
             
             // Handle page visibility changes
             document.addEventListener('visibilitychange', function() {
                 if (document.visibilityState === 'visible') {
-                    safeEmit('user_online', { user_id: window.userId });
+                    window.safeEmit('user_online', { user_id: window.userId });
                 } else {
-                    safeEmit('user_offline', { user_id: window.userId });
+                    window.safeEmit('user_offline', { user_id: window.userId });
                 }
             });
         }
     });
-});
+}
+
+// Start WebSocket initialization when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeWebSocketListeners);
+} else {
+    initializeWebSocketListeners();
+}
 
 // Function to reinitialize card scripts after content update
 function initializeCardScripts() {
@@ -667,9 +684,15 @@ function initializeCardScripts() {
         button.addEventListener('click', function() {
             const contactType = this.getAttribute('data-contact-type');
             // Use whenSocketReady to ensure socket is available
-            whenSocketReady(() => {
-                handleContactAction(this, contactType);
-            });
+            if (typeof window.whenSocketReady === 'function') {
+                window.whenSocketReady(() => {
+                    if (typeof handleContactAction === 'function') {
+                        handleContactAction(this, contactType);
+                    }
+                });
+            } else {
+                console.warn('whenSocketReady not available');
+            }
         });
     });
 }

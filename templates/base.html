@@ -410,18 +410,50 @@
     </script>
     
     <!-- Socket.IO -->
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" integrity="sha384-mZLF4UVrpi/QTWPA7BjNPEnkIfRFn4ZEO3Qt/HFklTJBj/gBOV8G3HcKn4NfQblz" crossorigin="anonymous"></script>
     
     {% if current_user.is_authenticated %}
     <script>
-    // Global socket initialization check
+    // Global socket variables
+    window.socket = null;
     window.isSocketInitialized = false;
+    window.USER_ID = parseInt("{{ current_user.id }}");
+    window.SOCKET_URL = '{{ request.url_root | replace("http", "ws") | replace("///", "//") }}'.replace(/\/+$/, '');
+    
+    // Initialize whenSocketReady queue
+    window._socketReadyQueue = [];
+    
+    // Function to process the queue
+    window._processSocketReadyQueue = function() {
+        while (window._socketReadyQueue.length > 0) {
+            const callback = window._socketReadyQueue.shift();
+            try {
+                callback();
+            } catch (e) {
+                console.error('Error in socket ready callback:', e);
+            }
+        }
+    };
+    
+    // Define whenSocketReady at the global scope
+    window.whenSocketReady = function(callback) {
+        if (window.isSocketInitialized && window.socket && window.socket.connected) {
+            console.log('Socket already ready, executing callback');
+            callback();
+        } else {
+            console.log('Queueing socket ready callback');
+            window._socketReadyQueue.push(callback);
+        }
+    };
+    
+    // Safe emit function with error handling
     window.safeEmit = function(event, data) {
         if (!window.socket || !window.socket.connected) {
             console.warn('Socket not connected, cannot emit:', event);
             return false;
         }
         try {
+            console.log('Emitting event:', event, data);
             window.socket.emit(event, data);
             return true;
         } catch (error) {
@@ -433,21 +465,30 @@
     // Function to wait for socket to be ready
     window.whenSocketReady = function(callback) {
         if (window.isSocketInitialized && window.socket && window.socket.connected) {
+            console.log('Socket already ready, executing callback');
             callback();
         } else {
-            const checkInterval = setInterval(() => {
-                if (window.isSocketInitialized && window.socket && window.socket.connected) {
-                    clearInterval(checkInterval);
-                    callback();
-                }
-            }, 100);
+            console.log('Queueing socket ready callback');
+            window._socketReadyQueue.push(callback);
         }
     };
     
     // Main socket initialization
-        var USER_ID = parseInt("{{ current_user.id }}");
-        var SOCKET_URL = '{{ config["SOCKET_SERVER_URL"] or request.url_root.strip("/") }}';
-        var socket = null;
+    var socket = null;
+        
+        // Function to wait for socket to be ready
+        function whenSocketReady(callback) {
+            if (socket && socket.connected) {
+                callback();
+            } else {
+                var interval = setInterval(function() {
+                    if (socket && socket.connected) {
+                        clearInterval(interval);
+                        callback();
+                    }
+                }, 100);
+            }
+        }
         var reconnectAttempts = 0;
         const MAX_RECONNECT_ATTEMPTS = 10;
         const RECONNECT_DELAY = 3000; // 3 seconds
@@ -474,51 +515,79 @@
         function initSocket() {
             if (!USER_ID) {
                 console.log('User not authenticated, skipping socket initialization');
-                return;
+                return false;
             }
 
             try {
                 if (typeof io === 'undefined') {
                     console.error('Socket.IO library not loaded');
-                    return;
+                    return false;
                 }
 
-                socket = io({
+                console.log('Initializing WebSocket connection to:', SOCKET_URL);
+                
+                // Close existing socket if any
+                if (window.socket) {
+                    console.log('Closing existing socket connection');
+                    window.socket.close();
+                    window.socket = null;
+                }
+
+                // Initialize socket with explicit URL and options
+                socket = io(SOCKET_URL, {
+                    path: '/socket.io',
                     transports: ['websocket', 'polling'],
                     upgrade: true,
                     reconnection: true,
-                    reconnectionDelay: RECONNECT_DELAY,
-                    reconnectionDelayMax: 10000,
-                    reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    reconnectionAttempts: 10,
                     timeout: 20000,
                     forceNew: true,
-                    autoConnect: true
+                    autoConnect: true,
+                    withCredentials: true
                 });
+
+                // Store socket globally
+                window.socket = socket;
 
                 // Connection established
                 socket.on('connect', function() {
                     console.log('Successfully connected to WebSocket server');
-                    reconnectAttempts = 0;
                     window.isSocketInitialized = true;
-                    window.socket = socket; // Make socket globally available
-                    safeEmit('user_online', {user_id: USER_ID});
-                    safeEmit('join', {room: 'user_' + USER_ID});
+                    console.log('Socket connected with ID:', socket.id);
+                    safeEmit('user_online', {user_id: window.USER_ID});
+                    safeEmit('join', {room: 'user_' + window.USER_ID});
+                    
+                    // Process any queued callbacks
+                    window._processSocketReadyQueue();
+                    
+                    // Set up socket listeners after successful connection
+                    setupSocketListeners();
                 });
 
                 // Connection error
                 socket.on('connect_error', function(error) {
                     console.error('WebSocket connection error:', error);
-                    reconnectAttempts++;
-                    if (reconnectAttempts === 1) {
-                        console.log('Attempting to reconnect...');
-                    }
+                    console.error('Error details:', {
+                        message: error.message,
+                        name: error.name,
+                        description: error.description,
+                        context: error.context
+                    });
                 });
 
                 // Disconnection
                 socket.on('disconnect', function(reason) {
-                    console.log('Disconnected from WebSocket:', reason);
+                    console.log('Disconnected from WebSocket. Reason:', reason);
                     window.isSocketInitialized = false;
                     safeEmit('user_offline', {user_id: USER_ID});
+                    
+                    // Attempt to reconnect after a delay
+                    if (reason === 'io server disconnect') {
+                        console.log('Server initiated disconnect. Will attempt to reconnect...');
+                        setTimeout(initSocket, 1000);
+                    }
                 });
 
                 // Handle reconnection attempts
@@ -529,26 +598,48 @@
                 // Handle successful reconnection
                 socket.on('reconnect', function(attemptNumber) {
                     console.log('Successfully reconnected after', attemptNumber, 'attempts');
+                    window.isSocketInitialized = true;
                     safeEmit('user_online', {user_id: USER_ID});
+                    safeEmit('join', {room: 'user_' + USER_ID});
                 });
 
                 // Handle failed reconnection
                 socket.on('reconnect_failed', function() {
-                    console.error('Failed to reconnect after', MAX_RECONNECT_ATTEMPTS, 'attempts');
+                    console.error('Failed to reconnect after multiple attempts');
+                    // Try to reinitialize the socket
+                    setTimeout(initSocket, 5000);
                 });
 
                 return true;
             } catch (error) {
                 console.error('Error initializing socket:', error);
+                // Retry initialization after a delay
+                setTimeout(initSocket, 5000);
                 return false;
             }
         }
         
         // Initialize socket when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            if (initSocket()) {
-                console.log('Socket initialization started');
-            }
+            console.log('DOM fully loaded, initializing socket...');
+            initSocket();
+            
+            // Set up a periodic check for socket connection
+            const connectionCheck = setInterval(function() {
+                if (window.socket && window.socket.connected) {
+                    clearInterval(connectionCheck);
+                    console.log('Socket connection verified');
+                } else if (window.socket) {
+                    console.log('Socket not connected, current state:', {
+                        connected: window.socket.connected,
+                        disconnected: window.socket.disconnected,
+                        id: window.socket.id
+                    });
+                } else {
+                    console.log('Socket not initialized, retrying...');
+                    initSocket();
+                }
+            }, 2000);
             
             // Handle page visibility changes
             document.addEventListener('visibilitychange', function() {
@@ -647,10 +738,7 @@
             });
         }
 
-        // Call setupSocketListeners after socket is initialized
-        if (socket) {
-            setupSocketListeners();
-        }
+        // Socket listeners will be set up when socket is ready
 
         // Update unread message count
         function updateUnreadCount() {
