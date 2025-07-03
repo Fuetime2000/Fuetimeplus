@@ -410,7 +410,13 @@
     </script>
     
     <!-- Socket.IO -->
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" integrity="sha384-mZLF4UVrpi/QTWPA7BjNPEnkIfRFn4ZEO3Qt/HFklTJBj/gBOV8G3HcKn4NfQblz" crossorigin="anonymous"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script>
+        // Set WebSocket URL based on current host
+        window.SOCKET_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://localhost:5000' 
+            : window.location.origin;
+    </script>
     
     {% if current_user.is_authenticated %}
     <script>
@@ -484,6 +490,7 @@
     };
     
     // Socket connection variables
+    var socket = null;
     var reconnectAttempts = 0;
     const MAX_RECONNECT_ATTEMPTS = 10;
     const RECONNECT_DELAY = 3000; // 3 seconds
@@ -504,7 +511,7 @@
     }
         
         function initSocket() {
-            if (!USER_ID) {
+            if (!window.USER_ID) {
                 console.log('User not authenticated, skipping socket initialization');
                 return false;
             }
@@ -513,6 +520,11 @@
                 if (typeof io === 'undefined') {
                     console.error('Socket.IO library not loaded');
                     return false;
+                }
+                
+                // Set default socket URL if not set
+                if (!window.SOCKET_URL) {
+                    window.SOCKET_URL = window.location.origin;
                 }
 
                 console.log('Initializing socket connection...');
@@ -529,7 +541,20 @@
                 
                 // Initialize new socket connection with reconnection and error handling
                 console.log('Creating new socket connection to', window.SOCKET_URL);
-                socket = io(window.SOCKET_URL, {
+                
+                // Close existing socket if any
+                if (window.socket) {
+                    try {
+                        window.socket.disconnect();
+                    } catch (e) {
+                        console.warn('Error disconnecting existing socket:', e);
+                    }
+                    window.socket = null;
+                }
+                
+                // Create new socket connection
+                window.socket = io(window.SOCKET_URL, {
+                    path: '/socket.io',
                     withCredentials: true,
                     reconnection: true,
                     reconnectionAttempts: Infinity,
@@ -538,8 +563,12 @@
                     timeout: 20000,
                     forceNew: true,
                     autoConnect: true,
-                    transports: ['websocket', 'polling']
+                    transports: ['websocket', 'polling'],
+                    secure: window.location.protocol === 'https:'
                 });
+                
+                // Set socket to global variable for backward compatibility
+                socket = window.socket;
 
                 // Store socket globally
                 window.socket = socket;
@@ -617,7 +646,25 @@
         // Initialize socket when page loads
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM fully loaded, initializing socket...');
-            initSocket();
+            
+            // Set global variables if not set
+            const userId = '{{ current_user.id if current_user.is_authenticated else "" }}';
+            window.USER_ID = window.USER_ID || (userId || null);
+            
+            // Make sure Socket.IO is loaded
+            if (typeof io === 'undefined') {
+                console.error('Socket.IO not loaded. Please check your internet connection.');
+                return;
+            }
+            
+            // Initialize socket if user is authenticated
+            if (window.USER_ID && window.USER_ID !== 'None' && window.USER_ID !== '') {
+                // Small delay to ensure everything is loaded
+                setTimeout(function() {
+                    console.log('Initializing socket...');
+                    initSocket();
+                }, 500);
+            }
             
             // Set up a periodic check for socket connection
             const connectionCheck = setInterval(function() {

@@ -1,12 +1,362 @@
 {% extends "base.html" %}
 
 {% block head %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+{{ super() }}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <meta name="csrf-token" content="{{ csrf_token() }}">
+
+<script>
+// Chat application namespace
+const ChatApp = (function() {
+    // Private variables
+    let socket = null;
+    let currentUserId = null;
+    let receiverId = null;
+    let messageForm = null;
+    let chatMessages = null;
+    let typingTimeout = null;
+    const TYPING_TIMEOUT_MS = 2000;
+    
+    // Initialize the chat application
+    function init() {
+        // Get DOM elements
+        messageForm = document.getElementById('message-form');
+        chatMessages = document.getElementById('chat-messages');
+        
+        // Get user IDs from the template
+        currentUserId = parseInt('{{ current_user.id if current_user.is_authenticated else 0 }}', 10);
+        receiverId = parseInt('{{ receiver.id if receiver else 0 }}', 10);
+        
+        // Store in window for debugging
+        window.currentUserId = currentUserId;
+        window.receiverId = receiverId;
+        
+        // Initialize socket
+        initSocket();
+        
+        // Initialize event listeners
+        initEventListeners();
+        
+        // Scroll to bottom of chat
+        scrollToBottom();
+        
+        console.log('Chat initialized', { currentUserId, receiverId });
+    }
+    
+    // Initialize socket connection
+    function initSocket() {
+        if (window.socket) {
+            socket = window.socket;
+        } else {
+            console.log('Creating new socket connection');
+            socket = io({
+                path: '/socket.io',
+                withCredentials: true,
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 20000,
+                transports: ['websocket', 'polling']
+            });
+            window.socket = socket;
+        }
+        
+        // Set up socket event handlers
+        setupSocketHandlers();
+    }
+    
+    // Set up socket event handlers
+    function setupSocketHandlers() {
+        // Connection established
+        socket.on('connect', () => {
+            console.log('Socket connected:', socket.id);
+            joinChatRoom();
+        });
+        
+        // Connection error
+        socket.on('connect_error', (error) => {
+            console.error('Socket connection error:', error);
+            if (error.message === 'Not authenticated') {
+                window.location.href = '/login';
+            }
+        });
+        
+        // Force disconnect
+        socket.on('force_disconnect', () => {
+            console.log('Force disconnect received');
+            disconnectSocket();
+            window.location.href = '/login';
+        });
+        
+        // Handle incoming messages
+        socket.on('receive_message', handleIncomingMessage);
+    }
+    
+    // Join the chat room
+    function joinChatRoom() {
+        if (!socket || !socket.connected) return;
+        
+        const roomId = [currentUserId, receiverId].sort().join('_');
+        console.log('Joining room:', roomId);
+        socket.emit('join_room', { room: roomId });
+    }
+    
+    // Handle incoming message
+    function handleIncomingMessage(data) {
+        console.log('Received message:', data);
+        
+        if (!data || !data.sender_id) {
+            console.error('Invalid message data:', data);
+            return;
+        }
+        
+        // Don't show our own messages (they're added when sent)
+        if (parseInt(data.sender_id) === currentUserId) return;
+        
+        // Add message to chat
+        addMessageToChat(data);
+    }
+    
+    // Add message to chat UI
+    function addMessageToChat(message) {
+        if (!chatMessages) return;
+        
+        const isCurrentUser = parseInt(message.sender_id) === currentUserId;
+        const messageTime = message.timestamp ? new Date(message.timestamp) : new Date();
+        
+        const messageElement = document.createElement('div');
+        messageElement.className = `message-wrapper ${isCurrentUser ? 'message-sent' : 'message-received'}`;
+        messageElement.innerHTML = `
+            <div class="message">
+                <div class="message-content ${isCurrentUser ? 'sent' : 'received'}">
+                    ${message.content ? escapeHtml(message.content).split('\n').map(line => `<p>${line}</p>`).join('') : ''}
+                    ${message.attachment_url ? generateAttachmentHtml(message.attachment_url) : ''}
+                    <span class="message-time">${formatTimestamp(messageTime)}</span>
+                </div>
+            </div>
+        `;
+        
+        chatMessages.appendChild(messageElement);
+        scrollToBottom();
+    }
+    
+    // Initialize event listeners
+    function initEventListeners() {
+        if (!messageForm) return;
+        
+        // Handle message form submission
+        messageForm.addEventListener('submit', handleMessageSubmit);
+        
+        // Handle typing indicator
+        const messageInput = messageForm.querySelector('input[name="content"]');
+        if (messageInput) {
+            messageInput.addEventListener('input', handleTyping);
+        }
+        
+        // Handle attachment input
+        const attachmentInput = messageForm.querySelector('input[type="file"]');
+        if (attachmentInput) {
+            attachmentInput.addEventListener('change', handleAttachment);
+        }
+        
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        // Handle window unload
+        window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+    
+    // Handle message form submission
+    async function handleMessageSubmit(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(messageForm);
+        const content = formData.get('content');
+        const file = formData.get('attachment');
+        
+        if (!content && !file) {
+            alert('Please enter a message or attach a file');
+            return;
+        }
+        
+        try {
+            // Add message to UI immediately for better UX
+            if (content || file) {
+                const tempMessage = {
+                    sender_id: currentUserId,
+                    content: content,
+                    attachment_url: file ? URL.createObjectURL(file) : null,
+                    timestamp: new Date().toISOString()
+                };
+                addMessageToChat(tempMessage);
+            }
+            
+            // Submit the form
+            const response = await fetch(`/chat/${receiverId}`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('input[name="csrf_token"]')?.value || ''
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.status !== 'success') {
+                throw new Error(result.message || 'Failed to send message');
+            }
+            
+            // Reset the form
+            messageForm.reset();
+            
+        } catch (error) {
+            console.error('Error sending message:', error);
+            alert(`Failed to send message: ${error.message}`);
+        }
+    }
+    
+    // Handle typing indicator
+    function handleTyping() {
+        if (!socket || !socket.connected) return;
+        
+        // Clear any existing timeout
+        if (typingTimeout) clearTimeout(typingTimeout);
+        
+        // Emit typing event
+        socket.emit('typing', {
+            sender_id: currentUserId,
+            receiver_id: receiverId,
+            room: [currentUserId, receiverId].sort().join('_')
+        });
+        
+        // Set timeout to stop typing indicator
+        typingTimeout = setTimeout(() => {
+            // The server will handle the typing timeout
+        }, TYPING_TIMEOUT_MS);
+    }
+    
+    // Handle file attachment
+    function handleAttachment(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const previewContainer = document.querySelector('.attachment-preview');
+        const previewImage = document.querySelector('.attachment-preview img');
+        const previewIcon = document.querySelector('.attachment-preview i');
+        
+        if (!previewContainer || !previewImage || !previewIcon) return;
+        
+        previewContainer.classList.add('show');
+        
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewImage.classList.remove('d-none');
+                previewIcon.classList.add('d-none');
+            };
+            reader.readAsDataURL(file);
+        } else {
+            previewImage.classList.add('d-none');
+            previewIcon.classList.remove('d-none');
+        }
+    }
+    
+    // Handle page visibility changes
+    function handleVisibilityChange() {
+        if (!socket) return;
+        
+        if (document.visibilityState === 'visible') {
+            socket.emit('user_online', { user_id: currentUserId });
+        } else {
+            socket.emit('user_offline', { user_id: currentUserId });
+        }
+    }
+    
+    // Handle window unload
+    function handleBeforeUnload() {
+        if (socket) {
+            socket.emit('user_offline', { user_id: currentUserId });
+            disconnectSocket();
+        }
+    }
+    
+    // Disconnect socket
+    function disconnectSocket() {
+        if (socket) {
+            socket.off(); // Remove all event listeners
+            socket.disconnect();
+            socket = null;
+            window.socket = null;
+        }
+    }
+    
+    // Scroll chat to bottom
+    function scrollToBottom() {
+        if (chatMessages) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    }
+    
+    // Format timestamp
+    function formatTimestamp(date) {
+        if (!(date instanceof Date)) {
+            date = new Date(date);
+        }
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    // Generate HTML for attachment
+    function generateAttachmentHtml(url) {
+        if (!url) return '';
+        
+        if (url.match(/\.(jpeg|jpg|gif|png)$/)) {
+            return `
+                <div class="attachment">
+                    <img src="${url}" alt="Attachment" onclick="openImagePreview('${url}')">
+                </div>
+            `;
+        } else {
+            return `
+                <div class="attachment">
+                    <a href="${url}" target="_blank" class="file-attachment">
+                        <i class="fas fa-file"></i> Download File
+                    </a>
+                </div>
+            `;
+        }
+    }
+    
+    // Escape HTML to prevent XSS
+    function escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+    
+    // Public API
+    return {
+        init: init
+    };
+})();
+
+// Initialize the chat when the DOM is fully loaded
+document.addEventListener('DOMContentLoaded', () => {
+    ChatApp.init();
+});
+</script>
+
 <style>
 :root {
     --primary-color: #2563eb;
@@ -746,51 +1096,218 @@ body {
     </div>
 </div>
 
+<script id="user-data" type="application/json">
+    {
+        "currentUserId": {{ current_user.id if current_user and current_user.id else 0 }},
+        "receiverId": {{ receiver.id if receiver and receiver.id else 'null' }},
+        "currentUserName": "{{ current_user.username if current_user and current_user.username else ''|safe }}"
+    }
+</script>
 <script>
-    const socket = io({
-        transports: ['polling', 'websocket'],
-        upgrade: true,
-        reconnection: false, // Disable auto-reconnection
-        auth: (cb) => {
-            cb({
-                token: document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            });
-        },
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        reconnectionAttempts: 5
-    });
-
-    // Parse user IDs as integers
-    const currentUserId = parseInt('{{ current_userid }}', 10);
-    const receiverId = '{{ receiverid }}' ? parseInt('{{ receiverid }}', 10) : null;
-    if (!receiverId || isNaN(receiverId)) {
-        console.error('Invalid receiver ID');
-        window.location.href = '{{ url_for("main.index") }}';
+    // Parse user information from JSON
+    window.userData = window.userData || {};
+    const userData = document.getElementById('user-data') ? 
+        JSON.parse(document.getElementById('user-data').textContent) : {};
+        
+    // Get current user ID from either window, userData, or template
+    window.currentUserId = window.currentUserId || 
+                         userData.currentUserId || 
+                         parseInt('{{ current_user.id if current_user.is_authenticated else 0 }}', 10);
+                         
+    // Get receiver ID from either window, userData, or template
+    window.receiverId = window.receiverId || 
+                       userData.receiverId || 
+                       parseInt('{{ receiver.id if receiver else 0 }}', 10);
+                       
+    // Get current user name
+    window.currentUserName = window.currentUserName || 
+                           userData.currentUserName || 
+                           '{{ current_user.username if current_user.is_authenticated else "" }}';
+    
+    // Shortcuts for easier access
+    const currentUserId = window.currentUserId;
+    const receiverId = window.receiverId;
+    const currentUserName = window.currentUserName;
+    
+    // Wait for socket to be initialized by base.html
+    function initChat() {
+        console.log('Initializing chat...');
+        console.log('Current user ID:', currentUserId);
+        console.log('Receiver ID:', receiverId);
+        
+        // Initialize socket if not already done
+        if (window.socket) {
+            setupChatSocketListeners();
+        } else {
+            console.warn('Socket not initialized yet, will retry...');
+            setTimeout(initChat, 100);
+            return;
+        }
+        
+        // Function to join chat room
+        const joinChatRoom = () => {
+            if (window.currentUserId && window.receiverId) {
+                const roomId = [window.currentUserId, window.receiverId].sort().join('_');
+                console.log('Joining room:', roomId);
+                if (window.socket) {
+                    window.socket.emit('join_room', { room: roomId });
+                }
+            }
+        };
+        
+        // Join chat room
+        const roomId = [currentUserId, receiverId].sort().join('_');
+        console.log('Joining room:', roomId);
+        
+        if (window.socket) {
+            window.socket.emit('join_room', { room: roomId });
+        } else {
+            console.error('Socket not available for joining room');
+        }
     }
 
     // Show typing indicator
     let typingTimeout = null;
-    const showTypingIndicator = () => {
-        socket.emit('typing', { room: `user_${receiverId}` });
+    const TYPING_TIMEOUT_MS = 2000; // 2 seconds of inactivity
+    
+    // Function to show typing indicator
+    function showTypingIndicator() {
         const typingIndicator = document.getElementById('typing-indicator');
-        if (typingIndicator) {
-            typingIndicator.classList.add('show');
-            if (typingTimeout) {
-                clearTimeout(typingTimeout);
-            }
-            typingTimeout = setTimeout(() => {
-                typingIndicator.classList.remove('show');
-            }, 2000);
+        if (!typingIndicator) return;
+        
+        typingIndicator.classList.add('show');
+        
+        // Clear any existing timeout
+        if (typingTimeout) clearTimeout(typingTimeout);
+        
+        // Hide after timeout
+        typingTimeout = setTimeout(() => {
+            typingIndicator.classList.remove('show');
+        }, TYPING_TIMEOUT_MS);
+    }
+    
+    // Initialize message input event listener
+    function initMessageInput() {
+        const messageInput = document.getElementById('message-input');
+        if (!messageInput) return;
+        
+        messageInput.addEventListener('input', function() {
+            if (!socket) return;
+            
+            // Clear any existing timeout
+            if (typingTimeout) clearTimeout(typingTimeout);
+            
+            // Send typing indicator
+            socket.emit('typing', {
+                sender_id: currentUserId,
+                receiver_id: receiverId,
+                room: [currentUserId, receiverId].sort().join('_')
+            });
+            
+            // Set timeout to stop typing indicator
+            typingTimeout = setTimeout(function() {
+                // The server will handle the typing timeout
+            }, TYPING_TIMEOUT_MS);
+        });
+    }
+    
+    // Setup chat-specific socket listeners
+    function setupChatSocketListeners() {
+        if (!window.socket) {
+            console.error('Socket not available for setting up chat listeners');
+            // Try to initialize socket again
+            setTimeout(setupChatSocketListeners, 500);
+            return false;
         }
-    };
+        
+        console.log('Setting up chat socket listeners...');
+        
+        // Remove any existing listeners to prevent duplicates
+        window.socket.off('receive_message');
+        
+        // Handle incoming messages
+        window.socket.on('receive_message', async function(data) {
+            try {
+                if (!data || !data.sender_id) {
+                    console.error('Invalid message data received:', data);
+                    return;
+                }
+                
+                const isCurrentUser = parseInt(data.sender_id, 10) === window.currentUserId;
+                if (isCurrentUser) return; // Don't show our own messages again
+                
+                console.log('Received message:', data);
+                
+                // Add message to chat
+                if (typeof addMessageToChat === 'function') {
+                    await addMessageToChat(data);
+                    // Scroll to bottom
+                    scrollToBottom();
+                } else {
+                    console.error('addMessageToChat function not found');
+                }
+            } catch (error) {
+                console.error('Error processing received message:', error);
+            }
+        });
 
-    socket.on('connect', function() {
-        socket.emit('join', { room: 'user_' + currentUserId });
-        // Notify server that user is online
-        socket.emit('user_online', { user_id: currentUserId });
-        console.log('Connected to Socket.IO');
-    });
+        // Typing indicators
+        window.socket.on('typing', function(data) {
+            if (!data || !data.sender_id) {
+                console.error('Invalid typing data received:', data);
+                return;
+            }
+            
+            if (parseInt(data.sender_id, 10) !== window.currentUserId) {
+                if (typeof showTypingIndicator === 'function') {
+                    showTypingIndicator();
+                } else {
+                    console.error('showTypingIndicator function not found');
+                }
+            }
+        });
+
+        // User is online/offline
+        socket.on('user_status', function(data) {
+            const statusElement = document.querySelector('.status-badge');
+            const statusText = document.querySelector('.user-status .status-text');
+            if (statusElement && statusText) {
+                if (data.status === 'online') {
+                    statusElement.classList.add('online');
+                    statusText.textContent = 'Online';
+                    statusText.classList.add('online');
+                } else {
+                    statusElement.classList.remove('online');
+                    statusText.textContent = 'Offline';
+                    statusText.classList.remove('online');
+                }
+            }
+        });
+
+        // Handle connection errors
+        socket.on('connect_error', function(error) {
+            console.error('Connection error:', error);
+            // Show error to user
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'alert alert-warning';
+                errorDiv.textContent = 'Connection error. Attempting to reconnect...';
+                chatMessages.appendChild(errorDiv);
+                scrollToBottom();
+            }
+        });
+
+        // Handle successful reconnection
+        socket.on('reconnect', function(attemptNumber) {
+            console.log('Successfully reconnected after', attemptNumber, 'attempts');
+            // Rejoin rooms after reconnection
+            if (receiverId) {
+                const roomId = [currentUserId, receiverId].sort().join('_');
+                socket.emit('join_room', { room: roomId });
+            }
+        });
+    }
 
     socket.on('force_disconnect', function() {
         console.log('Force disconnect received');
@@ -817,13 +1334,9 @@ body {
             }, 2000);
         }
     });
+
     const messageForm = document.getElementById('message-form');
     const attachmentInput = document.getElementById('attachment');
-    const previewContainer = document.getElementById('preview-container');
-    const previewImage = document.getElementById('preview-image');
-    const previewIcon = document.getElementById('preview-icon');
-    const chatMessages = document.getElementById('chat-messages');
-    const imagePreviewModal = new bootstrap.Modal(document.getElementById('image-preview-modal'));
 
     // Handle user status changes
     socket.on('user_status_changed', function(data) {
@@ -905,27 +1418,55 @@ body {
             </div>`;
     }
 
-    socket.on('receive_message', async function(data) {
+    // Handle incoming messages
+    function handleIncomingMessage(data) {
+        console.log('Received message event:', data);
+        const chatMessages = document.getElementById('chat-messages');
+        if (!chatMessages) {
+            console.error('Chat messages container not found');
+            return;
+        }
+        
         try {
             const isCurrentUser = parseInt(data.sender_id, 10) === currentUserId;
+            console.log('Message is from current user?', isCurrentUser);
+            
+            // Make sure we have a timestamp
+            const timestamp = data.timestamp ? data.timestamp : new Date().toISOString();
             
             const messageHtml = `
                 <div class="message-wrapper ${isCurrentUser ? 'message-sent' : 'message-received'}">
                     <div class="message">
                         <div class="message-content ${isCurrentUser ? 'sent' : 'received'}">
-                            ${escapeHtml(data.content || '').split('\n').map(line => `<p>${line}</p>`).join('')}
-                            ${generateAttachmentHtml(data.attachment_url || data.attachment)}
-                            <span class="message-time">${formatTimestamp(data.timestamp)}</span>
+                            ${data.content ? escapeHtml(data.content).split('\n').map(line => `<p>${line}</p>`).join('') : ''}
+                            ${generateAttachmentHtml(data.attachment_url || data.attachment || '')}
+                            <span class="message-time">${formatTimestamp(timestamp)}</span>
                         </div>
                     </div>
                 </div>`;
         
             chatMessages.insertAdjacentHTML('beforeend', messageHtml);
             scrollToBottom();
+            console.log('Message added to chat UI');
         } catch (error) {
             console.error('Error handling received message:', error);
         }
-    });
+    }
+    
+    // Register the message handler with the socket
+    if (window.socket) {
+        console.log('Registering receive_message handler');
+        window.socket.on('receive_message', handleIncomingMessage);
+    } else {
+        console.warn('Socket not available for registering message handler');
+        // Try again after a short delay
+        setTimeout(function() {
+            if (window.socket) {
+                console.log('Retrying to register receive_message handler');
+                window.socket.on('receive_message', handleIncomingMessage);
+            }
+        }, 500);
+    }
 
     function escapeHtml(unsafe) {
         return unsafe
@@ -964,6 +1505,13 @@ body {
     
     messageForm.addEventListener('submit', async function(e) {
         e.preventDefault();
+        console.log('Form submitted');
+        
+        if (!socket || !socket.connected) {
+            console.error('Socket not connected');
+            alert('Connection lost. Please refresh the page.');
+            return;
+        }
         
         const formData = new FormData(this);
         const content = formData.get('content');
@@ -985,28 +1533,57 @@ body {
                 throw new Error('CSRF token not found');
             }
             
+            console.log('Sending message to server...');
             const response = await fetch(`/chat/${receiverId}`, {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'X-CSRFToken': csrfToken.value
-                }
+                },
+                credentials: 'same-origin'  // Ensure cookies are sent with the request
             });
+            console.log('Server response status:', response.status);
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             const result = await response.json();
+            console.log('Server response data:', result);
             
             if (result.status === 'success') {
-                // Only reset form after successful save
-                this.reset();
-                removeAttachment();
-                
-                // Message will be added through the socket.io event
-                // No need to manually add it here
-                return;
+                console.log('Message sent successfully, adding to UI');
+                // Add the sent message to the UI immediately
+                try {
+                    const chatMessages = document.getElementById('chat-messages');
+                    if (!chatMessages) {
+                        console.error('Chat messages container not found');
+                        return;
+                    }
+                    
+                    const messageHtml = `
+                        <div class="message-wrapper message-sent">
+                            <div class="message">
+                                <div class="message-content sent">
+                                    ${result.content ? escapeHtml(result.content).split('\n').map(line => `<p>${line}</p>`).join('') : ''}
+                                    ${generateAttachmentHtml(result.attachment_url || '')}
+                                    <span class="message-time">${formatTimestamp(result.timestamp || new Date().toISOString())}</span>
+                                </div>
+                            </div>
+                        </div>`;
+                    
+                    chatMessages.insertAdjacentHTML('beforeend', messageHtml);
+                    scrollToBottom();
+                    console.log('Sent message added to chat UI');
+                    
+                    // Reset the form
+                    this.reset();
+                    removeAttachment();
+                    return;
+                } catch (error) {
+                    console.error('Error adding sent message to UI:', error);
+                    // Continue to the error handling below
+                }
             }
             
             // If we get here, it means the server returned a non-success status
@@ -1026,10 +1603,71 @@ body {
         imagePreviewModal.show();
     }
     
-    // Disconnect socket and update status when leaving the page
+    // Initialize socket and chat when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Make sure we have the receiver ID
+        window.receiverId = window.receiverId || parseInt('{{ receiver.id if receiver else 0 }}', 10);
+        
+        // Initialize socket if not already done by base.html
+        if (!window.socket) {
+            console.log('Initializing socket connection...');
+            window.socket = io({
+                path: '/socket.io',
+                withCredentials: true,
+                reconnection: true,
+                reconnectionAttempts: Infinity,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 20000,
+                autoConnect: true,
+                transports: ['websocket', 'polling'],
+                secure: window.location.protocol === 'https:'
+            });
+            
+            // Set up global error handlers
+            window.socket.on('connect_error', function(error) {
+                console.error('Socket.IO connection error:', error);
+                if (error.message === 'Not authenticated') {
+                    window.location.href = '/login';
+                }
+            });
+            
+            window.socket.on('force_disconnect', function() {
+                console.log('Force disconnect received');
+                if (window.socket) {
+                    window.socket.disconnect();
+                }
+                window.location.href = '/login';
+            });
+        }
+        
+        // Initialize chat (will set up socket listeners when ready)
+        initChat();
+        
+        // Initialize UI elements
+        initMessageInput();
+        initElements();
+        
+        console.log('Chat initialized with:', {
+            currentUserId: window.currentUserId,
+            receiverId: window.receiverId,
+            socket: window.socket ? 'connected' : 'not connected'
+        });
+    });
+
+    // Handle page visibility changes
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible' && socket) {
+            // Page is now visible, update status
+            socket.emit('user_online', { user_id: currentUserId });
+        }
+    });
+
+    // Handle window close
     window.addEventListener('beforeunload', function() {
-        socket.emit('user_offline', { user_id: currentUserId });
-        socket.disconnect();
+        if (socket) {
+            socket.emit('user_offline', { user_id: currentUserId });
+        }
     });
 
     // Handle page visibility changes

@@ -170,11 +170,18 @@ def chat(user_id):
                         'content': content,
                         'attachment_url': attachment_url,
                         'sender_id': current_user.id,
+                        'recipient_id': user_id,
                         'sender_photo': current_user.photo or '/static/images/default-avatar.png',
                         'sender_name': current_user.full_name,
-                        'timestamp': message.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                        'timestamp': message.created_at.isoformat(),
+                        'sender_avatar': current_user.photo or '/static/images/default-avatar.png'
                     }
                     
+                    # Emit to sender with 'message' event to trigger unread count update
+                    socketio.emit('message', message_data, room=f'user_{current_user.id}')
+                    # Emit to receiver with 'message' event to trigger unread count update
+                    socketio.emit('message', message_data, room=f'user_{user_id}')
+                    # Also emit to both with 'receive_message' for chat UI updates
                     socketio.emit('receive_message', message_data, room=f'user_{current_user.id}')
                     socketio.emit('receive_message', message_data, room=f'user_{user_id}')
                     
