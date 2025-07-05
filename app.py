@@ -1,4 +1,5 @@
 import logging
+from math import sin, cos, sqrt, atan2, radians, asin, degrees
 from logging.handlers import RotatingFileHandler
 import os
 import secrets
@@ -4130,6 +4131,17 @@ def filter_by_location():
                 except ValueError:
                     continue
         
+        if not filtered_users:
+            # No users found with location data
+            html = """
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> No users found in this area. Try expanding your search range.
+                    </div>
+                </div>
+            """
+            return jsonify({'success': True, 'html': html})
+            
         # Sort users by distance
         filtered_users.sort(key=lambda x: x['distance'])
         

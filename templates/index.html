@@ -248,6 +248,48 @@
     }
 }
 
+/* Toast styles */
+.toast {
+    width: 350px;
+    max-width: 100%;
+    font-size: 0.875rem;
+    pointer-events: auto;
+    background-color: rgba(255, 255, 255, 0.95);
+    background-clip: padding-box;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border-radius: 0.375rem;
+    margin-bottom: 0.75rem;
+    opacity: 0;
+    transition: opacity 0.15s linear;
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+.toast-header {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    color: #6c757d;
+    background-color: rgba(255, 255, 255, 0.95);
+    background-clip: padding-box;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    border-top-left-radius: calc(0.375rem - 1px);
+    border-top-right-radius: calc(0.375rem - 1px);
+}
+
+.toast-body {
+    padding: 0.75rem;
+    word-wrap: break-word;
+}
+
+/* Ensure toast appears above other content */
+.toast-container {
+    z-index: 1090;
+}
+
 .search-form .input-group {
     width: 100%;
 }
@@ -429,8 +471,16 @@
     </button>
 </div>
 
-<div class="toast" id="location-toast">
-    {{ _('No users found in this area') }}
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="location-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="3000">
+        <div class="toast-header">
+            <strong class="me-auto">{{ _('Location') }}</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            {{ _('No users found in this area') }}
+        </div>
+    </div>
 </div>
 <div class="container mt-4">
 
@@ -461,9 +511,16 @@
         </div>
     </div>
 </div>
-<!-- Toast Notification -->
-<div class="toast-container">
-    <div id="noUsersToast" class="custom-toast">
+<!-- Toast Container (positioned at bottom-right) -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="location-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto">{{ _('Location') }}</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            {{ _('No users found in this area') }}
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -478,20 +535,91 @@ let hasMore = true;
 let isLocationFilterActive = false;
 
 function showToast(message, duration = 3000) {
-    const toastEl = document.getElementById('location-toast');
-    const toastBody = toastEl.querySelector('.toast-body');
+    // Get or create toast element
+    let toastEl = document.getElementById('location-toast');
     
-    // Initialize Bootstrap toast if not already done
-    if (!toastEl._toast) {
-        toastEl._toast = new bootstrap.Toast(toastEl, { autohide: true, delay: duration });
+    // If toast element doesn't exist, create it
+    if (!toastEl) {
+        const toastContainer = document.createElement('div');
+        toastContainer.className = 'position-fixed bottom-0 end-0 p-3';
+        toastContainer.style.zIndex = '1090';
+        
+        toastEl = document.createElement('div');
+        toastEl.id = 'location-toast';
+        toastEl.className = 'toast align-items-center text-bg-primary border-0';
+        toastEl.role = 'alert';
+        toastEl.setAttribute('aria-live', 'assertive');
+        toastEl.setAttribute('aria-atomic', 'true');
+        
+        const toastBody = document.createElement('div');
+        toastBody.className = 'd-flex';
+        
+        toastBody.innerHTML = `
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        `;
+        
+        toastEl.appendChild(toastBody);
+        toastContainer.appendChild(toastEl);
+        document.body.appendChild(toastContainer);
+    } else {
+        // Update existing toast message
+        const toastBody = toastEl.querySelector('.toast-body');
+        if (toastBody) {
+            toastBody.textContent = message;
+        }
     }
     
-    // Update message
-    toastBody.textContent = message;
+    // Initialize or get the Bootstrap Toast instance
+    let toastInstance = bootstrap.Toast.getInstance(toastEl);
+    if (!toastInstance) {
+        toastInstance = new bootstrap.Toast(toastEl, {
+            animation: true,
+            autohide: true,
+            delay: duration
+        });
+    } else {
+        // Update the delay for the existing toast
+        toastInstance._config.delay = duration;
+    }
     
     // Show the toast
-    toastEl._toast._config.delay = duration;
-    toastEl._toast.show();
+    toastInstance.show();
+    
+    // Auto-hide after duration if specified
+    if (duration > 0) {
+        // Clear any existing timeout to prevent multiple timeouts
+        if (toastEl._timeoutId) {
+            clearTimeout(toastEl._timeoutId);
+        }
+        
+        // Set new timeout
+        toastEl._timeoutId = setTimeout(() => {
+            if (toastInstance) {
+                toastInstance.hide();
+            }
+        }, duration);
+    }
+    
+    // Store the toast instance on the element for future reference
+    toastEl._toast = toastInstance;
+    
+    // Clean up toast element when hidden
+    toastEl.addEventListener('hidden.bs.toast', function onHidden() {
+        if (toastEl._timeoutId) {
+            clearTimeout(toastEl._timeoutId);
+            delete toastEl._timeoutId;
+        }
+        // Remove the toast element when hidden if it was dynamically created
+        if (!document.getElementById('location-toast')) {
+            toastEl.remove();
+        }
+        toastEl.removeEventListener('hidden.bs.toast', onHidden);
+    });
+    
+    return toastInstance;
 }
 
 async function loadMoreUsers() {
@@ -552,6 +680,29 @@ function handleScroll() {
 window.addEventListener('scroll', handleScroll);
 // Initial load in case the page is too short
 handleScroll();
+
+// Initialize all toasts when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize all Bootstrap toasts
+    var toastElList = [].slice.call(document.querySelectorAll('.toast'));
+    toastElList.map(function (toastEl) {
+        return new bootstrap.Toast(toastEl, { 
+            autohide: true,
+            delay: 3000
+        });
+    });
+    
+    // Close button handler for toasts
+    document.querySelectorAll('.btn-close[data-bs-dismiss="toast"]').forEach(button => {
+        button.addEventListener('click', function() {
+            const toastElement = this.closest('.toast');
+            const toast = bootstrap.Toast.getInstance(toastElement);
+            if (toast) {
+                toast.hide();
+            }
+        });
+    });
+});
 
 // Search functionality
 const searchToggleBtn = document.getElementById('searchToggleBtn');
@@ -698,103 +849,138 @@ document.addEventListener('keydown', (e) => {
 loadRecentSearches();
 
 async function toggleLocationFilter() {
-    const button = document.querySelector('.location-btn');
-    const icon = button.querySelector('i');
-    const spinner = document.getElementById('location-spinner');
-    const resultsContainer = document.getElementById('users-container');
-    
-    // Toggle the active state immediately for better UX
-    isLocationFilterActive = !isLocationFilterActive;
-    console.log('Location filter active:', isLocationFilterActive);
-    
-    if (isLocationFilterActive) {
-        // Activating location filter
-        if (navigator.geolocation) {
-            try {
-                // Show loading state
-                console.log('Getting user location...');
-                icon.style.display = 'none';
-                spinner.style.display = 'block';
-                button.disabled = true;
-                button.setAttribute('aria-busy', 'true');
+    try {
+        const button = document.querySelector('.location-btn');
+        const icon = button.querySelector('i');
+        const spinner = document.getElementById('location-spinner');
+        const resultsContainer = document.getElementById('users-container');
+        
+        console.log('Toggle location filter clicked. Current state:', isLocationFilterActive);
+        
+        // Toggle the active state immediately for better UX
+        isLocationFilterActive = !isLocationFilterActive;
+        console.log('Location filter active:', isLocationFilterActive);
+        
+        if (isLocationFilterActive) {
+            // Activating location filter
+            if (navigator.geolocation) {
+                try {
+                    // Show loading state
+                    console.log('Getting user location...');
+                    icon.style.display = 'none';
+                    spinner.style.display = 'block';
+                    button.disabled = true;
+                    button.setAttribute('aria-busy', 'true');
 
-                // Save the current content if not already saved
-                if (!window.originalUsersContent) {
-                    window.originalUsersContent = resultsContainer.innerHTML;
-                }
-
-                // Get user's location
-                const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(
-                        resolve,
-                        reject,
-                        {
-                            enableHighAccuracy: true,
-                            timeout: 10000, // Increased timeout
-                            maximumAge: 0
-                        }
-                    );
-                });
-
-                // Call backend API
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                const url = `/filter-by-location?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`;
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                
-                const data = await response.json();
-
-                if (data.success) {
-                    if (data.html && data.html.trim() !== '') {
-                        resultsContainer.innerHTML = data.html;
-                        button.classList.add('active');
-                        showToast("{{ _('Showing users near your location') }}");
-                    } else {
-                        resultsContainer.innerHTML = `
-                            <div class="col-12">
-                                <div class="alert alert-info">
-                                    <i class="fas fa-info-circle"></i> {{ _('No users found in your area. Try expanding your search range.') }}
-                                </div>
-                            </div>`;
-                        isLocationFilterActive = false;
-                        button.classList.remove('active');
+                    // Save the current content if not already saved
+                    if (!window.originalUsersContent) {
+                        window.originalUsersContent = resultsContainer.innerHTML;
+                        console.log('Saved original users content');
                     }
-                } else {
-                    throw new Error(data.error || "{{ _('Failed to filter users by location') }}");
+
+                    // Get user's location
+                    console.log('Requesting geolocation...');
+                    const position = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(
+                            (pos) => {
+                                console.log('Got position:', pos.coords);
+                                resolve(pos);
+                            },
+                            (err) => {
+                                console.error('Geolocation error:', err);
+                                reject(err);
+                            },
+                            {
+                                enableHighAccuracy: true,
+                                timeout: 10000, // 10 seconds
+                                maximumAge: 0
+                            }
+                        );
+                    });
+
+                    // Call backend API
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    console.log('Calling API with location:', { lat, lng });
+                    
+                    const url = `/filter-by-location?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`;
+                    console.log('API URL:', url);
+                    
+                    const response = await fetch(url);
+                    console.log('API Response status:', response.status);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('API Error:', errorText);
+                        throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('API Response data:', data);
+
+                    if (data.success) {
+                        if (data.html && data.html.trim() !== '') {
+                            // Always update the content with the server response
+                            resultsContainer.innerHTML = data.html;
+                            
+                            // Check if the response contains the no users message
+                            if (data.html.includes('No users found in this area')) {
+                                console.log('No users found in the area');
+                                showToast("{{ _('No users found in your area. Try expanding your search range.') }}");
+                                // Keep the filter active but show the message
+                                button.classList.add('active');
+                            } else {
+                                // Valid users found
+                                button.classList.add('active');
+                                showToast("{{ _('Showing users near your location') }}");
+                                console.log('Successfully updated users list with location data');
+                            }
+                        } else {
+                            // Empty response but no error
+                            console.log('Empty response from server');
+                            showToast("{{ _('No users found in your area.') }}");
+                            button.classList.remove('active');
+                        }
+                    } else {
+                        console.error('API returned success:false', data);
+                        throw new Error(data.error || "{{ _('Failed to filter users by location') }}");
+                    }
+                } catch (error) {
+                    console.error('Error in location filter:', error);
+                    isLocationFilterActive = false;
+                    const errorMessage = error.message || "{{ _('Could not get your location. Please try again.') }}";
+                    console.error('Error details:', errorMessage);
+                    showToast(errorMessage);
+                } finally {
+                    // Reset UI
+                    console.log('Resetting UI state');
+                    spinner.style.display = 'none';
+                    icon.style.display = 'block';
+                    button.disabled = false;
+                    button.removeAttribute('aria-busy');
                 }
-            } catch (error) {
-                console.error('Location error:', error);
+            } else {
+                console.error('Geolocation not supported');
                 isLocationFilterActive = false;
-                showToast(error.message || "{{ _('Could not get your location. Please try again.') }}");
-            } finally {
-                // Reset UI
-                console.log('Resetting UI state');
-                spinner.style.display = 'none';
-                icon.style.display = 'block';
-                button.disabled = false;
-                button.removeAttribute('aria-busy');
+                showToast("{{ _('Geolocation is not supported by your browser.') }}");
             }
         } else {
-            isLocationFilterActive = false;
-            showToast("{{ _('Geolocation is not supported by your browser.') }}");
+            // Deactivating location filter - restore original content
+            console.log('Deactivating location filter');
+            if (window.originalUsersContent) {
+                resultsContainer.innerHTML = window.originalUsersContent;
+                delete window.originalUsersContent;
+                showToast("{{ _('Showing all users') }}");
+            } else {
+                // If for some reason we don't have the original content, reload the page
+                console.log('No original content found, reloading page');
+                window.location.reload();
+            }
+            button.classList.remove('active');
         }
-    } else {
-        // Deactivating location filter - restore original content
-        console.log('Deactivating location filter');
-        if (window.originalUsersContent) {
-            resultsContainer.innerHTML = window.originalUsersContent;
-            delete window.originalUsersContent;
-            showToast("{{ _('Showing all users') }}");
-        } else {
-            // If for some reason we don't have the original content, reload the page
-            console.log('No original content found, reloading page');
-            window.location.reload();
-        }
-        button.classList.remove('active');
+    } catch (error) {
+        console.error('Unexpected error in toggleLocationFilter:', error);
+        showToast("{{ _('An unexpected error occurred. Please try again.') }}");
     }
 }
 </script>
