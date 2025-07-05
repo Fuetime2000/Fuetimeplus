@@ -150,14 +150,20 @@
             {% endif %}
 
             <!-- Action Buttons -->
-            {% if current_user.is_authenticated and current_user.id != user.id %}
+            {% if current_user.id != user.id %}
             <div class="d-flex gap-1 flex-wrap justify-content-between">
                 <button class="btn btn-success btn-sm contact-btn compact-btn" 
-                        onclick="initiateCall('{{ user.id }}')"
+                        {% if not current_user.is_authenticated %}
+                            onclick="showLoginPrompt('Please login to make a call'); return false;"
+                        {% else %}
+                            onclick="initiateCall('{{ user.id }}'); return false;"
+                        {% endif %}
                         data-user-id="{{ user.id }}">
                     <i class="fas fa-phone-alt me-1"></i>Call
                 </button>
-                <a href="{{ url_for('chat', user_id=user.id) }}" class="btn btn-primary btn-sm compact-btn">
+                <a href="{% if current_user.is_authenticated %}{{ url_for('chat', user_id=user.id) }}{% else %}#{% endif %}" 
+                   class="btn btn-primary btn-sm compact-btn"
+                   {% if not current_user.is_authenticated %}onclick="event.preventDefault(); showLoginPrompt('Please login to start a chat');"{% endif %}>
                     <i class="fas fa-comment-alt me-1"></i>Chat
                 </a>
                 <button class="btn btn-outline-primary btn-sm share-btn compact-btn" 
@@ -167,6 +173,35 @@
                 </button>
             </div>
             {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Login Required Modal -->
+<div class="modal fade" id="loginRequiredModal" tabindex="-1" aria-labelledby="loginRequiredModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-primary" id="loginRequiredModalLabel">
+                    <i class="fas fa-sign-in-alt me-2"></i>Login Required
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="mb-4">
+                    <i class="fas fa-user-lock text-primary" style="font-size: 3rem; opacity: 0.8;"></i>
+                </div>
+                <h5 id="loginMessage" class="mb-3"></h5>
+                <p class="text-muted">Please login to access this feature and connect with others.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Maybe Later
+                </button>
+                <a href="{{ url_for('login') }}" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt me-1"></i> Login / Register
+                </a>
+            </div>
         </div>
     </div>
 </div>
@@ -962,6 +997,27 @@ function showToast(type, message, bgClass = 'primary') {
     });
     
     return toast;
+}
+
+// Show login prompt for non-authenticated users
+function showLoginPrompt(message) {
+    // Set the message in the modal
+    const loginMessage = document.getElementById('loginMessage');
+    if (loginMessage) {
+        loginMessage.textContent = message;
+    }
+    
+    // Initialize and show the modal
+    const loginModal = new bootstrap.Modal(document.getElementById('loginRequiredModal'));
+    loginModal.show();
+    
+    // Update the login link to include the current URL as the 'next' parameter
+    const loginLink = document.querySelector('#loginRequiredModal .btn-primary');
+    if (loginLink) {
+        loginLink.href = '{{ url_for("login") }}?next=' + encodeURIComponent(window.location.pathname);
+    }
+    
+    return false;
 }
 
 // Handle image loading errors (only run once)

@@ -34,8 +34,42 @@ def signup():
         return redirect(url_for('main.index'))
         
     if request.method == 'POST':
-        # Add signup logic here
-        pass
+        name = request.form.get('name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # Validate input
+        if not all([name, email, password, confirm_password]):
+            flash('All fields are required.')
+            return redirect(url_for('auth.signup'))
+            
+        if password != confirm_password:
+            flash('Passwords do not match.')
+            return redirect(url_for('auth.signup'))
+            
+        # Check if user already exists
+        if User.query.filter_by(email=email).first():
+            flash('Email address already registered.')
+            return redirect(url_for('auth.signup'))
+            
+        # Create new user
+        try:
+            new_user = User(
+                name=name,
+                email=email,
+                password=generate_password_hash(password, method='sha256')
+            )
+            db.session.add(new_user)
+            db.session.commit()
+            
+            flash('Registration successful! Please log in.')
+            return redirect(url_for('auth.login'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash('An error occurred. Please try again.')
+            return redirect(url_for('auth.signup'))
         
     return render_template('auth/signup.html')
 
