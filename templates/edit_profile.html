@@ -1,71 +1,211 @@
 {% extends "base.html" %}
 
-{% block title %}Edit Profile{% endblock %}
+{% block title %}Edit Profile - Fuetime{% endblock %}
 
 {% block content %}
 <style>
-    .edit-profile-container {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        min-height: calc(100vh - 60px);
-        padding: 2rem 0;
+    :root {
+        --primary-color: #4a6cf7;
+        --primary-hover: #3a5ce4;
+        --secondary-color: #6c757d;
+        --light-bg: #f8f9ff;
+        --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     }
+
+    .edit-profile-container {
+        background: linear-gradient(135deg, #f6f9ff 0%, #eef2ff 100%);
+        min-height: 100vh;
+        padding: 2rem 0 4rem;
+    }
+
     .profile-card {
         background: white;
-        border-radius: 15px;
-        box-shadow: 0 0 20px rgba(0,0,0,0.1);
-        transition: transform 0.3s ease;
+        border-radius: 16px;
+        box-shadow: var(--card-shadow);
+        transition: var(--transition);
+        border: none;
+        overflow: hidden;
     }
+
     .profile-card:hover {
         transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
     }
+
     .form-control, .form-select {
-        border-radius: 8px;
-        border: 1px solid #dee2e6;
-        padding: 0.75rem 1rem;
-        transition: all 0.3s ease;
-    }
-    .form-control:focus, .form-select:focus {
-        box-shadow: 0 0 0 0.25rem rgba(13,110,253,0.15);
-        border-color: #0d6efd;
-    }
-    .input-group-text {
-        border-radius: 8px;
-        background-color: #f8f9fa;
-    }
-    .btn-save {
-        padding: 0.75rem 2rem;
-        font-weight: 600;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-    }
-    .btn-save:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    }
-    .form-section {
-        background: #f8f9fa;
-        padding: 1.5rem;
         border-radius: 10px;
-        margin-bottom: 1.5rem;
+        border: 2px solid #e9ecef;
+        padding: 0.85rem 1.2rem;
+        font-size: 0.95rem;
+        transition: var(--transition);
+        background-color: #fff;
     }
-    .section-title {
-        color: #0d6efd;
+
+    .form-control:focus, .form-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.25rem rgba(74, 108, 247, 0.15);
+    }
+
+    .input-group-text {
+        border-radius: 10px 0 0 10px;
+        background-color: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-right: none;
+        color: var(--secondary-color);
+    }
+
+    .input-group > .form-control:not(:first-child) {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+
+    .btn-save {
+        padding: 0.8rem 2.5rem;
         font-weight: 600;
-        margin-bottom: 1.5rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid #0d6efd;
+        border-radius: 10px;
+        background: var(--primary-color);
+        border: none;
+        letter-spacing: 0.5px;
+        transition: var(--transition);
     }
+
+    .btn-save:hover, .btn-save:focus {
+        background: var(--primary-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(74, 108, 247, 0.3);
+    }
+
+    .btn-outline-secondary {
+        border-radius: 10px;
+        padding: 0.8rem 2rem;
+        font-weight: 500;
+        transition: var(--transition);
+    }
+
+    .form-section {
+        background: #fff;
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 1.75rem;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        transition: var(--transition);
+    }
+
+    .form-section:hover {
+        border-color: rgba(74, 108, 247, 0.2);
+    }
+
+    .section-title {
+        color: var(--primary-color);
+        font-weight: 700;
+        margin-bottom: 1.75rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid rgba(74, 108, 247, 0.1);
+        position: relative;
+        font-size: 1.25rem;
+    }
+
+    .section-title:after {
+        content: '';
+        position: absolute;
+        left: 0;
+        bottom: -2px;
+        width: 50px;
+        height: 2px;
+        background: var(--primary-color);
+    }
+
     .help-text {
         color: #6c757d;
-        font-size: 0.875rem;
-        margin-top: 0.25rem;
+        font-size: 0.825rem;
+        margin-top: 0.5rem;
+        opacity: 0.8;
     }
-    @media (max-width: 768px) {
+
+    .profile-header {
+        text-align: center;
+        margin-bottom: 2.5rem;
+    }
+
+    .profile-header h2 {
+        color: #2d3748;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .profile-header p {
+        color: var(--secondary-color);
+        font-size: 1.05rem;
+    }
+
+    /* Custom file upload button */
+    .custom-file-upload {
+        display: inline-block;
+        padding: 0.6rem 1.25rem;
+        cursor: pointer;
+        background: #f8f9fa;
+        border: 2px dashed #dee2e6;
+        border-radius: 10px;
+        color: var(--secondary-color);
+        transition: var(--transition);
+        width: 100%;
+        text-align: center;
+    }
+
+    .custom-file-upload:hover {
+        background: #f1f3f5;
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 991.98px) {
         .edit-profile-container {
-            padding: 1rem 0;
+            padding: 1.5rem 0 3rem;
         }
+        
         .profile-card {
-            border-radius: 10px;
+            border-radius: 12px;
+        }
+        
+        .form-section {
+            padding: 1.5rem;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .profile-header h2 {
+            font-size: 1.75rem;
+        }
+        
+        .form-section {
+            padding: 1.25rem;
+        }
+        
+        .btn-save, .btn-outline-secondary {
+            width: 100%;
+            margin-bottom: 0.75rem;
+        }
+        
+        .btn-group .btn {
+            width: 100%;
+            margin-bottom: 0.75rem;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .edit-profile-container {
+            padding: 1rem 0 2.5rem;
+        }
+        
+        .profile-header h2 {
+            font-size: 1.5rem;
+        }
+        
+        .form-section {
+            padding: 1rem;
+            margin-bottom: 1.25rem;
         }
     }
 </style>
@@ -73,28 +213,31 @@
 <div class="edit-profile-container">
     <div class="container">
         <div class="row justify-content-center">
-            <div class="col-lg-8 col-md-10">
+            <div class="col-12 col-lg-10 col-xl-8">
                 <div class="profile-card">
-                    <div class="card-body p-4 p-md-5">
-                        <h2 class="text-center mb-4">Edit Your Profile</h2>
-                        <p class="text-muted text-center mb-5">Update your information to make your profile stand out</p>
+                    <div class="card-body p-4 p-lg-5">
+                        <div class="profile-header">
+                            <h2>Edit Your Profile</h2>
+                            <p>Update your information to make your profile stand out</p>
+                        </div>
 
-                        <form method="POST" action="{{ url_for('edit_profile') }}" class="needs-validation" novalidate enctype="multipart/form-data">
+                        <form method="POST" action="{{ url_for('edit_profile') }}" id="profileForm" class="needs-validation" novalidate enctype="multipart/form-data">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <div id="form-errors" class="alert alert-danger d-none"></div>
 
                             <!-- Basic Information Section -->
                             <div class="form-section">
                                 <h4 class="section-title">Basic Information</h4>
-                                <div class="row g-3">
+                                <div class="row g-4">
                                     <div class="col-12">
-                                        <label for="full_name" class="form-label">Full Name</label>
-                                        <input type="text" class="form-control" id="full_name" name="full_name" 
+                                        <label for="full_name" class="form-label fw-medium">Full Name <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control form-control-lg" id="full_name" name="full_name" 
                                                value="{{ user.full_name }}" required>
                                         <div class="help-text">This name will be visible to other users</div>
                                     </div>
 
                                     <div class="col-md-6">
-                                        <label for="email" class="form-label">Email Address</label>
+                                        <label for="email" class="form-label fw-medium">Email Address <span class="text-danger">*</span></label>
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="fas fa-envelope"></i></span>
                                             <input type="email" class="form-control" id="email" name="email" 
@@ -103,7 +246,7 @@
                                     </div>
 
                                     <div class="col-md-6">
-                                        <label for="phone" class="form-label">Phone Number</label>
+                                        <label for="phone" class="form-label fw-medium">Phone Number <span class="text-danger">*</span></label>
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="fas fa-phone"></i></span>
                                             <input type="tel" class="form-control" id="phone" name="phone" 
@@ -118,23 +261,25 @@
                                 <h4 class="section-title">Professional Information</h4>
                                 <div class="row g-3">
                                     <div class="col-12">
-                                        <label for="education" class="form-label">Education Background</label>
-                                        <textarea class="form-control" id="education" name="education" 
-                                                  rows="3" placeholder="Enter your educational qualifications">{{ user.education }}</textarea>
-                                    </div>
+                                <label for="education" class="form-label fw-medium">Education Background</label>
+                                <textarea class="form-control" id="education" name="education" 
+                                          rows="3" placeholder="Enter your educational qualifications (e.g., B.Tech in Computer Science, IIT Delhi - 2020)">{% if user.education %}{{ user.education }}{% endif %}</textarea>
+                            </div>
 
-                                    <div class="col-12">
-                                        <label for="experience" class="form-label">Work Experience</label>
-                                        <textarea class="form-control" id="experience" name="experience" 
-                                                  rows="3" placeholder="Describe your work experience">{{ user.experience }}</textarea>
-                                    </div>
+                            <div class="col-12">
+                                <label for="experience" class="form-label fw-medium">Work Experience</label>
+                                <textarea class="form-control" id="experience" name="experience" 
+                                          rows="3" placeholder="Describe your work experience (e.g., 3+ years of experience in web development)">{% if user.experience %}{{ user.experience }}{% endif %}</textarea>
+                            </div>
 
-                                    <div class="col-12">
-                                        <label for="skills" class="form-label">Skills</label>
-                                        <input type="text" class="form-control" id="skills" name="skills" 
-                                               value="{{ user.skills }}" placeholder="e.g., Python, JavaScript, Project Management">
-                                        <div class="help-text">Separate multiple skills with commas</div>
-                                    </div>
+                            <div class="col-12">
+                                <label for="skills" class="form-label fw-medium">Skills</label>
+                                <input type="text" class="form-control" id="skills" name="skills" 
+                                       value="{% if user.skills %}{{ user.skills }}{% endif %}" 
+                                       data-role="tagsinput"
+                                       placeholder="Type and press enter to add skills">
+                                <div class="help-text">Press enter or add a comma after each skill</div>
+                            </div>
                                 </div>
                             </div>
 
@@ -143,21 +288,28 @@
                                 <h4 class="section-title">Location & Personal Details</h4>
                                 <div class="row g-3">
                                     <div class="col-12">
-                                        <label for="current_location" class="form-label">Current Location</label>
+                                        <label for="current_location" class="form-label fw-medium">Current Location</label>
                                         <div class="input-group">
                                             <span class="input-group-text"><i class="fas fa-map-marker-alt"></i></span>
                                             <input type="text" class="form-control" id="current_location" 
-                                                   name="current_location" value="{{ user.current_location }}" readonly>
-                                            <button type="button" class="btn btn-outline-primary" id="get-location-btn">
+                                                   name="current_location" value="{{ user.current_location }}" 
+                                                   placeholder="Your current location" readonly>
+                                            <button type="button" class="btn btn-outline-primary" id="get-location-btn" 
+                                                    data-bs-toggle="tooltip" data-bs-placement="top" 
+                                                    title="Use my current location">
                                                 <i class="fas fa-location-arrow"></i>
                                             </button>
                                         </div>
                                     </div>
 
                                     <div class="col-md-6">
-                                        <label for="date_of_birth" class="form-label">Date of Birth</label>
-                                        <input type="date" class="form-control" id="date_of_birth" 
-                                               name="date_of_birth" value="{{ user.date_of_birth.strftime('%Y-%m-%d') if user.date_of_birth else '' }}">
+                                        <label for="date_of_birth" class="form-label fw-medium">Date of Birth</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="far fa-calendar-alt"></i></span>
+                                            <input type="date" class="form-control" id="date_of_birth" 
+                                                   name="date_of_birth" 
+                                                   value="{{ user.date_of_birth.strftime('%Y-%m-%d') if user.date_of_birth else '' }}">
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -167,30 +319,31 @@
                                 <h4 class="section-title">Payment Information</h4>
                                 <div class="row g-3">
                                     <div class="col-md-6">
-                                        <label for="payment_type" class="form-label">Payment Type</label>
+                                        <label for="payment_type" class="form-label fw-medium">Payment Type</label>
                                         <select class="form-select" id="payment_type" name="payment_type">
                                             <option value="">Select payment type</option>
-                                            <option value="hour" {% if user.payment_type == 'hour' %}selected{% endif %}>hour</option>
-                                            <option value="daily" {% if user.payment_type == 'daily' %}selected{% endif %}>daily</option>
-                                            <option value="Month" {% if user.payment_type == 'Month' %}selected{% endif %}>month</option>
+                                            <option value="hour" {% if user.payment_type == 'hour' %}selected{% endif %}>Per Hour</option>
+                                            <option value="daily" {% if user.payment_type == 'daily' %}selected{% endif %}>Daily</option>
+                                            <option value="Month" {% if user.payment_type == 'Month' %}selected{% endif %}>Monthly</option>
                                         </select>
                                     </div>
 
                                     <div class="col-md-6">
-                                        <label for="payment_charge" class="form-label">Payment Rate (₹)</label>
+                                        <label for="payment_charge" class="form-label fw-medium">Payment Rate (₹)</label>
                                         <div class="input-group">
                                             <span class="input-group-text">₹</span>
                                             <input type="number" class="form-control" id="payment_charge" 
                                                    name="payment_charge" value="{{ user.payment_charge if user.payment_charge else '' }}" 
-                                                   step="0.01" min="0">
+                                                   step="1" min="0" placeholder="0">
                                         </div>
+                                        <div class="help-text">Leave as 0 if not applicable</div>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Action Buttons -->
-                            <div class="text-center mt-4">
-                                <button type="submit" class="btn btn-primary btn-save me-2">
+                            <div class="d-flex flex-column flex-md-row justify-content-center gap-3 mt-5 pt-3">
+                                <button type="submit" class="btn btn-primary btn-save" id="saveButton">
                                     <i class="fas fa-save me-2"></i>Save Changes
                                 </button>
                                 <a href="{{ url_for('profile', user_id=current_user.id) }}" class="btn btn-outline-secondary">
@@ -208,7 +361,78 @@
 <script>
 // Form validation and WebSocket handling
 document.addEventListener('DOMContentLoaded', function() {
-    const form = document.querySelector('.needs-validation');
+    // Initialize form submission handling
+    const form = document.getElementById('profileForm');
+    const saveButton = document.getElementById('saveButton');
+    const formErrors = document.getElementById('form-errors');
+    
+    if (form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Disable the save button to prevent double submission
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+            
+            try {
+                const formData = new FormData(form);
+                
+                // Add CSRF token to FormData if not already present
+                if (!formData.has('csrf_token')) {
+                    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+                    formData.append('csrf_token', csrfToken);
+                }
+                
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Show success message
+                    showToast('Success', data.message || 'Profile updated successfully!', 'success');
+                    
+                    // Redirect after a short delay
+                    setTimeout(() => {
+                        window.location.href = data.redirect || '{{ url_for("profile", user_id=current_user.id) }}';
+                    }, 1500);
+                } else {
+                    // Show error message
+                    const errorMsg = data.error || 'Failed to update profile. Please try again.';
+                    showToast('Error', errorMsg, 'danger');
+                    
+                    // Show form errors if any
+                    if (data.errors) {
+                        formErrors.innerHTML = '';
+                        formErrors.classList.remove('d-none');
+                        
+                        Object.entries(data.errors).forEach(([field, messages]) => {
+                            const errorItem = document.createElement('div');
+                            errorItem.textContent = `${field}: ${messages.join(', ')}`;
+                            formErrors.appendChild(errorItem);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error', 'An unexpected error occurred. Please try again.', 'danger');
+            } finally {
+                // Re-enable the save button
+                saveButton.disabled = false;
+                saveButton.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
+                
+                // Scroll to top to show any error messages
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+    }
+    // Location handling
     const locationBtn = document.getElementById('get-location-btn');
     const locationInput = document.getElementById('current_location');
     
@@ -274,62 +498,116 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize socket connection
     const socket = initializeSocket();
     
-    form.addEventListener('submit', async function(event) {
-        event.preventDefault();
-        
-        if (!form.checkValidity()) {
-            event.stopPropagation();
-            form.classList.add('was-validated');
+    // Form validation and submission is handled by the fetch-based form handler above
+    
+    // Make sure the form doesn't submit normally
+    const profileForm = document.getElementById('profileForm');
+    if (profileForm) {
+        profileForm.addEventListener('submit', function(e) {
+            // Prevent default form submission
+            e.preventDefault();
+            
+            // The form submission is handled by the AJAX code at the top of the script
             return false;
-        }
-        
-        // Show loading state
-        const submitBtn = form.querySelector('button[type="submit"]');
-        const originalBtnText = submitBtn.innerHTML;
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
-        
-        try {
-            // Create FormData object
-            const formData = new FormData(form);
-            
-            // Send form data via AJAX
-            const response = await fetch(form.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                },
-                credentials: 'same-origin'
-            });
-            
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to update profile');
+        });
+    }
+    
+    // Location button click handler
+    if (locationBtn) {
+        locationBtn.addEventListener('click', function() {
+            if (navigator.geolocation) {
+                locationBtn.disabled = true;
+                locationBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Locating...';
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        // Use OpenStreetMap Nominatim for reverse geocoding
+                        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
+                            .then(response => response.json())
+                            .then(data => {
+                                const address = data.display_name || `${lat}, ${lng}`;
+                                locationInput.value = address;
+                                locationBtn.disabled = false;
+                                locationBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
+                                showToast('Location updated', 'Your current location has been updated.', 'success');
+                            })
+                            .catch(error => {
+                                console.error('Error getting location:', error);
+                                locationBtn.disabled = false;
+                                locationBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
+                                showToast('Error', 'Could not get your location. Please try again or enter it manually.', 'danger');
+                            });
+                    },
+                    function(error) {
+                        console.error('Geolocation error:', error);
+                        locationBtn.disabled = false;
+                        locationBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
+                        
+                        let errorMessage = 'Could not get your location. ';
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage += 'Please enable location access in your browser settings.';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage += 'Location information is unavailable.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage += 'The request to get your location timed out.';
+                                break;
+                            default:
+                                errorMessage += 'An unknown error occurred.';
+                        }
+                        
+                        showToast('Location Error', errorMessage, 'danger');
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            } else {
+                showToast('Error', 'Geolocation is not supported by your browser.', 'danger');
             }
-            
-            // Show success message
-            showToast('Success', data.message || 'Profile updated successfully!', 'success');
-            
-            // If we have a redirect URL, go there after a short delay
-            if (data.redirect) {
-                setTimeout(() => {
-                    window.location.href = data.redirect;
-                }, 1500);
-            }
-            
-        } catch (error) {
-            console.error('Error:', error);
-            // Show error message to user
-            showToast('Error', error.message || 'Failed to update profile. Please try again.', 'danger');
-        } finally {
-            // Reset button state
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = originalBtnText;
-        }
+        });
+    }
+    
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+    
+    // Initialize form validation
+    const forms = document.querySelectorAll('.needs-validation');
+    Array.from(forms).forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!form.checkValidity()) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        }, false);
+    });
+    
+    // Initialize tags input for skills
+    if (typeof $.fn.tagsinput !== 'undefined' && document.getElementById('skills')) {
+        $('#skills').tagsinput({
+            trimValue: true,
+            confirmKeys: [13, 44, 32], // Enter, comma, space
+            maxTags: 15,
+            maxChars: 20,
+            tagClass: 'badge bg-primary me-1 mb-1',
+            focusClass: 'is-focused',
+            itemValue: 'value',
+            itemText: 'text',
+            freeInput: true
+        });
+    }
+    // Form submission is handled by the fetch-based form handler at the top of the script
 
     // Function to show toast notifications
     function showToast(title, message, type = 'info') {

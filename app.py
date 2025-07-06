@@ -2364,170 +2364,266 @@ def handle_contact_request(request_id, action):
 @app.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
 def edit_profile():
-    if request.method == 'POST':
+    if request.method == 'GET':
+        # For GET requests, just render the template with current user data
+        return render_template('edit_profile.html', user=current_user)
+        
+    # Handle POST requests
+    try:
+        print("Form data received:", request.form)
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
+        # Get the existing user with the same email (excluding current user)
+        email = request.form.get('email')
+        if email:
+            existing_email_user = User.query.filter(User.email == email, User.id != current_user.id).first()
+            if existing_email_user:
+                if is_ajax:
+                    return jsonify({'error': 'Email already exists.'}), 400
+                flash('Email already exists.', 'danger')
+                return redirect(url_for('edit_profile'))
+
+        # Get the existing user with the same phone (excluding current user)
+        phone = request.form.get('phone')
+        if phone:
+            existing_phone_user = User.query.filter(User.phone == phone, User.id != current_user.id).first()
+            if existing_phone_user:
+                if is_ajax:
+                    return jsonify({'error': 'Phone number already exists.'}), 400
+                flash('Phone number already exists.', 'danger')
+                return redirect(url_for('edit_profile'))
+
+        # Update user fields with validation
+        if request.form.get('full_name'):
+            current_user.full_name = request.form.get('full_name')
+        if email:
+            current_user.email = email
+        if phone:
+            current_user.phone = phone
+        
+        current_user.education = request.form.get('education', '')
+        current_user.experience = request.form.get('experience', '')
+        current_user.current_location = request.form.get('current_location', '')
+        current_user.live_location = request.form.get('live_location', '')
+        current_user.work = request.form.get('work', '')
+        current_user.mother_name = request.form.get('mother_name', '')
+        current_user.father_name = request.form.get('father_name', '')
+        current_user.bio = request.form.get('bio', '')
+        current_user.skills = request.form.get('skills', '')
+        current_user.categories = request.form.get('categories', '')
+        current_user.availability = request.form.get('availability', 'available')
+            
+        # Handle profile picture upload
+        if 'photo' in request.files:
+            file = request.files['photo']
+            if file and file.filename != '' and allowed_file(file.filename):
+                # Generate a secure filename with user's email as prefix
+                file_ext = os.path.splitext(file.filename)[1].lower()
+                safe_email = current_user.email.split('@')[0].lower().replace('.', '_')
+                photo_filename = f"{safe_email}_{int(time.time())}{file_ext}"
+                file_path = os.path.join(app.config['PROFILE_PICS_FOLDER'], photo_filename)
+                    
+                # Ensure the upload directory exists
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                
+                try:
+                    # Remove old profile picture if it exists
+                    if current_user.photo:
+                        old_photo_path = os.path.join(app.config['PROFILE_PICS_FOLDER'], current_user.photo)
+                        if os.path.exists(old_photo_path):
+                            os.remove(old_photo_path)
+                
+                    # Save new profile picture
+                    file.save(file_path)
+                    current_user.photo = photo_filename
+                    print(f"Updated profile picture to: {file_path}")
+                except Exception as e:
+                    app.logger.error(f"Error updating profile picture: {str(e)}")
+                    app.logger.error(traceback.format_exc())
+                    # Don't fail the entire update if image save fails
+            
+        # Handle date of birth
+        dob = request.form.get('date_of_birth')
         try:
-            print("Form data received:", request.form)
-            is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
-            
-            # Get the existing user with the same email (excluding current user)
-            email = request.form.get('email')
-            if email:
-                existing_email_user = User.query.filter(User.email == email, User.id != current_user.id).first()
-                if existing_email_user:
-                    if is_ajax:
-                        return jsonify({'error': 'Email already exists.'}), 400
-                    flash('Email already exists.', 'danger')
-                    return redirect(url_for('edit_profile'))
+            if dob and dob.strip():
+                current_user.date_of_birth = datetime.strptime(dob, '%Y-%m-%d')
+            else:
+                current_user.date_of_birth = None
+        except ValueError as e:
+            print(f"Date parsing error: {e}")
+            if is_ajax:
+                return jsonify({'error': 'Invalid date format for date of birth.'}), 400
+            flash('Invalid date format for date of birth.', 'danger')
+            return redirect(url_for('edit_profile'))
 
-            # Get the existing user with the same phone (excluding current user)
-            phone = request.form.get('phone')
-            if phone:
-                existing_phone_user = User.query.filter(User.phone == phone, User.id != current_user.id).first()
-                if existing_phone_user:
-                    if is_ajax:
-                        return jsonify({'error': 'Phone number already exists.'}), 400
-                    flash('Phone number already exists.', 'danger')
-                    return redirect(url_for('edit_profile'))
+        # Handle payment information
+        current_user.payment_type = request.form.get('payment_type')
+        payment_charge = request.form.get('payment_charge')
+        try:
+            if payment_charge and payment_charge.strip():
+                current_user.payment_charge = float(payment_charge)
+            else:
+                current_user.payment_charge = None
+        except ValueError as e:
+            print(f"Payment charge parsing error: {e}")
+            if is_ajax:
+                return jsonify({'error': 'Invalid payment charge value.'}), 400
+            flash('Invalid payment charge value.', 'danger')
+            return redirect(url_for('edit_profile'))
 
-            # Update user fields with validation
-            if request.form.get('full_name'):
-                current_user.full_name = request.form.get('full_name')
-            if email:
-                current_user.email = email
-            if phone:
-                current_user.phone = phone
+        print("About to commit changes...")
+        # Add the user to the session explicitly before commit
+        db.session.add(current_user)
+        try:
+            # First, verify we can connect to the database
+            from sqlalchemy import text
+            db.session.execute(text('SELECT 1'))
             
-            current_user.education = request.form.get('education', '')
-            current_user.experience = request.form.get('experience', '')
-            current_user.current_location = request.form.get('current_location', '')
-            current_user.live_location = request.form.get('live_location', '')
-            current_user.work = request.form.get('work', '')
-            current_user.mother_name = request.form.get('mother_name', '')
-            current_user.father_name = request.form.get('father_name', '')
-            current_user.bio = request.form.get('bio', '')
-            current_user.skills = request.form.get('skills', '')
-            current_user.categories = request.form.get('categories', '')
-            current_user.availability = request.form.get('availability', 'available')
-            
-            # Handle profile picture upload
-            if 'photo' in request.files:
-                file = request.files['photo']
-                if file and file.filename != '' and allowed_file(file.filename):
-                    # Generate a secure filename with user's email as prefix
-                    file_ext = os.path.splitext(file.filename)[1].lower()
-                    safe_email = current_user.email.split('@')[0].lower().replace('.', '_')
-                    photo_filename = f"{safe_email}_{int(time.time())}{file_ext}"
-                    file_path = os.path.join(app.config['PROFILE_PICS_FOLDER'], photo_filename)
-                    
-                    # Ensure the upload directory exists
-                    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                    
-                    try:
-                        # Remove old profile picture if it exists
-                        if current_user.photo:
-                            old_photo_path = os.path.join(app.config['PROFILE_PICS_FOLDER'], current_user.photo)
-                            if os.path.exists(old_photo_path):
-                                os.remove(old_photo_path)
-                        
-                        # Save new profile picture
-                        file.save(file_path)
-                        current_user.photo = photo_filename
-                        print(f"Updated profile picture to: {file_path}")
-                    except Exception as e:
-                        app.logger.error(f"Error updating profile picture: {str(e)}")
-                        app.logger.error(traceback.format_exc())
-                        # Don't fail the entire update if image save fails
-            
-            # Handle date of birth
-            dob = request.form.get('date_of_birth')
-            try:
-                if dob and dob.strip():
-                    current_user.date_of_birth = datetime.strptime(dob, '%Y-%m-%d')
-                else:
-                    current_user.date_of_birth = None
-            except ValueError as e:
-                print(f"Date parsing error: {e}")
-                if is_ajax:
-                    return jsonify({'error': 'Invalid date format for date of birth.'}), 400
-                flash('Invalid date format for date of birth.', 'danger')
-                return redirect(url_for('edit_profile'))
-
-            # Handle payment information
-            current_user.payment_type = request.form.get('payment_type')
-            payment_charge = request.form.get('payment_charge')
-            try:
-                if payment_charge and payment_charge.strip():
-                    current_user.payment_charge = float(payment_charge)
-                else:
-                    current_user.payment_charge = None
-            except ValueError as e:
-                print(f"Payment charge parsing error: {e}")
-                if is_ajax:
-                    return jsonify({'error': 'Invalid payment charge value.'}), 400
-                flash('Invalid payment charge value.', 'danger')
-                return redirect(url_for('edit_profile'))
-
-            print("About to commit changes...")
+            # Now commit the transaction
             db.session.commit()
             print("Changes committed successfully")
-
-            # Clear caches
-            try:
-                cache_key = f'profile_{current_user.id}'
-                if cache_key in profile_cache:
-                    del profile_cache[cache_key]
-                cache.delete_memoized(profile, current_user.id)
-                cache.delete_memoized(get_cached_profile, current_user.id)
-                print("Cache cleared successfully")
-            except Exception as cache_error:
-                print(f"Cache clearing error (non-critical): {cache_error}")
-
-            # Emit WebSocket event to notify profile update
-            try:
-                print(f"Emitting profile_updated event for user {current_user.id}")
-                socketio.emit('profile_updated', {
-                    'user_id': current_user.id,
-                    'success': True,
-                    'message': 'Profile updated successfully',
-                    'timestamp': datetime.now().isoformat(),
-                    'photo': current_user.photo,
-                    'full_name': current_user.full_name,
-                    'username': current_user.username
-                }, room='user_' + str(current_user.id))
-                print("Profile update event emitted successfully")
-            except Exception as e:
-                print(f"Error emitting profile_updated event: {str(e)}")
-
+            
+            # Clear the session to ensure we get fresh data
+            db.session.expire_all()
+            
+            # Refresh the user object to ensure we have the latest data
+            db.session.refresh(current_user)
+            
+            # Verify the changes were saved by querying the user again
+            updated_user = User.query.get(current_user.id)
+            # Create user data dictionary with safe attribute access
+            user_data = {
+                'id': updated_user.id,
+                'full_name': updated_user.full_name,
+                'email': updated_user.email,
+                'phone': updated_user.phone,
+                'skills': updated_user.skills,
+                'education': updated_user.education,
+                'experience': updated_user.experience,
+                'photo': updated_user.photo
+            }
+            
+            # Safely add updated_at if it exists
+            if hasattr(updated_user, 'updated_at'):
+                user_data['updated_at'] = updated_user.updated_at.isoformat() if updated_user.updated_at else None
+                
+            print("User after commit and refresh:", user_data)
+            
+        except Exception as commit_error:
+            db.session.rollback()
+            app.logger.error(f"Commit failed: {str(commit_error)}")
+            app.logger.error(traceback.format_exc())
+            
+            # Try to get more specific error information
+            if hasattr(commit_error, 'orig') and hasattr(commit_error.orig, 'pgerror'):
+                error_msg = f"Database error: {commit_error.orig.pgerror}"
+            else:
+                error_msg = f"Failed to save changes: {str(commit_error)}"
+            
             if is_ajax:
                 return jsonify({
-                    'success': True,
-                    'message': 'Profile updated successfully!',
-                    'redirect': url_for('profile', user_id=current_user.id)
-                })
-            
-            flash('Profile updated successfully!', 'success')
-            return redirect(url_for('profile', user_id=current_user.id))
-
-        except Exception as e:
-            db.session.rollback()
-            error_msg = f"Error updating profile: {str(e)}"
-            error_type = type(e).__name__
-            error_details = str(e.__dict__) if hasattr(e, '__dict__') else 'No additional details'
-            
-            print(f"{error_msg} - Type: {error_type}")
-            print(f"Error details: {error_details}")
-            
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                response = jsonify({
                     'success': False,
                     'error': error_msg,
-                    'type': error_type,
-                    'details': error_details
-                })
-                return response, 500
+                    'type': 'DatabaseError',
+                    'details': str(commit_error)
+                }), 500
                 
             flash(error_msg, 'danger')
             return redirect(url_for('edit_profile'))
+
+        # Clear caches with more aggressive invalidation
+        try:
+            # Clear in-memory cache
+            cache_key = f'profile_{current_user.id}'
+            if cache_key in profile_cache:
+                del profile_cache[cache_key]
+            
+            # Clear Flask-Caching
+            cache.delete_memoized(profile, current_user.id)
+            cache.delete_memoized(get_cached_profile, current_user.id)
+            
+            # Clear any other related caches
+            cache.delete(f'user_{current_user.id}_profile')
+            cache.delete(f'user_{current_user.id}_reviews')
+            
+            # Clear the session to force a fresh load
+            db.session.expire_all()
+            
+            print(f"Successfully cleared all caches for user {current_user.id}")
+        except Exception as cache_error:
+            app.logger.error(f"Cache clearing error: {cache_error}")
+            app.logger.error(traceback.format_exc())
+            # Don't fail the request if cache clearing fails, but log it
+
+        # Emit WebSocket event to notify profile update
+        try:
+            print(f"Emitting profile_updated event for user {current_user.id}")
+            
+            # Get fresh user data to ensure we're sending the latest
+            user_data = {
+                'user_id': current_user.id,
+                'success': True,
+                'message': 'Profile updated successfully',
+                'timestamp': datetime.now().isoformat(),
+                'photo': current_user.photo,
+                'full_name': current_user.full_name,
+                'username': current_user.username,
+                'skills': current_user.skills,
+                'education': current_user.education,
+                'experience': current_user.experience
+            }
+            
+            # Safely add updated_at if it exists
+            if hasattr(current_user, 'updated_at'):
+                user_data['updated_at'] = current_user.updated_at.isoformat() if current_user.updated_at else None
+            
+            # Emit to the specific user's room
+            socketio.emit('profile_updated', user_data, room='user_' + str(current_user.id))
+            
+            # Also emit to any admin rooms if needed
+            socketio.emit('admin_profile_updated', {
+                'user_id': current_user.id,
+                'username': current_user.username,
+                'timestamp': datetime.now().isoformat()
+            }, namespace='/admin')
+            
+            print(f"Successfully emitted profile_updated event for user {current_user.id}")
+            print("User data sent:", json.dumps(user_data, indent=2))
+            
+        except Exception as e:
+            app.logger.error(f"Error emitting profile_updated event: {str(e)}")
+            app.logger.error(traceback.format_exc())
+
+        if is_ajax:
+            return jsonify({
+                'success': True,
+                'message': 'Profile updated successfully!',
+                'redirect': url_for('profile', user_id=current_user.id)
+            })
+        
+        flash('Profile updated successfully!', 'success')
+        return redirect(url_for('profile', user_id=current_user.id))
+
+    except Exception as e:
+        db.session.rollback()
+        error_msg = f"Error updating profile: {str(e)}"
+        error_type = type(e).__name__
+        error_details = str(e.__dict__) if hasattr(e, '__dict__') else 'No additional details'
+        
+        print(f"{error_msg} - Type: {error_type}")
+        print(f"Error details: {error_details}")
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            response = jsonify({
+                'success': False,
+                'error': error_msg,
+                'type': error_type,
+                'details': error_details
+            })
+            return response, 500
+            
+        flash(error_msg, 'danger')
+        return redirect(url_for('edit_profile'))
     
     return render_template('edit_profile.html', user=current_user)
 
