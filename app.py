@@ -249,26 +249,55 @@ if not os.path.exists('logs'):
 from logging.handlers import WatchedFileHandler
 log_file = 'logs/fuetime.log'
 
-# Create a file handler for logging
-file_handler = WatchedFileHandler(log_file)
+# Create a file handler for logging with UTF-8 encoding
+file_handler = WatchedFileHandler(log_file, encoding='utf-8')
 file_handler.setFormatter(logging.Formatter(
     '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
 file_handler.setLevel(logging.INFO)
 
-# Create a console handler for logging to console
-console_handler = logging.StreamHandler()
+# Create a console handler for logging to console with UTF-8 encoding
+class UnicodeStreamHandler(logging.StreamHandler):
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            stream.write(msg + self.terminator)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
+console_handler = UnicodeStreamHandler()
 console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 
-# Configure the root logger
-logging.basicConfig(level=logging.INFO, handlers=[file_handler, console_handler])
-logger = logging.getLogger(__name__)
+# Remove all handlers associated with the root logger
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
+# Configure the root logger with proper encoding handling
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[file_handler, console_handler],
+    encoding='utf-8'
+)
+
+# Get the root logger
+logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Avoid duplicate handlers
-if not logger.handlers:
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+# Clear any existing handlers to avoid duplicates
+if logger.hasHandlers():
+    logger.handlers.clear()
+
+# Add our handlers
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+# Set the default encoding to UTF-8
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 from flask_caching import Cache
 from flask_compress import Compress
 from flask_wtf.csrf import generate_csrf
@@ -2402,6 +2431,7 @@ def edit_profile():
             current_user.phone = phone
         
         current_user.education = request.form.get('education', '')
+        current_user.profession = request.form.get('profession', '')
         current_user.experience = request.form.get('experience', '')
         current_user.current_location = request.form.get('current_location', '')
         current_user.live_location = request.form.get('live_location', '')
@@ -2538,13 +2568,23 @@ def edit_profile():
             if cache_key in profile_cache:
                 del profile_cache[cache_key]
             
-            # Clear Flask-Caching
-            cache.delete_memoized(profile, current_user.id)
-            cache.delete_memoized(get_cached_profile, current_user.id)
+            # Clear Flask-Caching for get_cached_profile if it's memoized
+            if hasattr(get_cached_profile, '__wrapped__'):  # Check if function is memoized
+                cache.delete_memoized(get_cached_profile, current_user.id)
             
-            # Clear any other related caches
-            cache.delete(f'user_{current_user.id}_profile')
-            cache.delete(f'user_{current_user.id}_reviews')
+            # Clear any other related caches using direct key deletion
+            cache_keys = [
+                f'user_{current_user.id}_profile',
+                f'user_{current_user.id}_reviews',
+                f'flask_cache_{current_user.id}_profile',
+                f'flask_cache_{current_user.id}_reviews'
+            ]
+            
+            for key in cache_keys:
+                try:
+                    cache.delete(key)
+                except Exception as e:
+                    app.logger.warning(f"Failed to delete cache key {key}: {str(e)}")
             
             # Clear the session to force a fresh load
             db.session.expire_all()
@@ -4861,12 +4901,14 @@ def view_project(project_id):
 # Template context processor
 @app.context_processor
 def inject_defaults():
-    return {
-        'average_rating': 0.0,
-        'total_reviews': 0,
-        'portfolio': None,
-        'reviews': []
-    }
+    from datetime import datetime
+    return dict(
+        now=datetime.utcnow(),
+        average_rating=0.0,
+        total_reviews=0,
+        portfolio=None,
+        reviews=[]
+    )
 
 # Start the server
 @app.route('/update-session-balance', methods=['POST'])

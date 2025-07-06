@@ -260,19 +260,30 @@
                             <div class="form-section">
                                 <h4 class="section-title">Professional Information</h4>
                                 <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="profession" class="form-label fw-medium">Profession/Occupation</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="fas fa-briefcase"></i></span>
+                                            <input type="text" class="form-control" id="profession" name="profession" 
+                                                   placeholder="e.g., Web Developer, Electrician, Plumber"
+                                                   value="{{ user.profession if user.profession else '' }}">
+                                        </div>
+                                        <div class="help-text">Your primary profession or occupation</div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label for="education" class="form-label fw-medium">Education Background</label>
+                                        <textarea class="form-control" id="education" name="education" 
+                                                  rows="3" placeholder="Enter your educational qualifications (e.g., B.Tech in Computer Science, IIT Delhi - 2020)">{% if user.education %}{{ user.education }}{% endif %}</textarea>
+                                    </div>
+
                                     <div class="col-12">
-                                <label for="education" class="form-label fw-medium">Education Background</label>
-                                <textarea class="form-control" id="education" name="education" 
-                                          rows="3" placeholder="Enter your educational qualifications (e.g., B.Tech in Computer Science, IIT Delhi - 2020)">{% if user.education %}{{ user.education }}{% endif %}</textarea>
-                            </div>
+                                        <label for="experience" class="form-label fw-medium">Work Experience</label>
+                                        <textarea class="form-control" id="experience" name="experience" 
+                                                  rows="3" placeholder="Describe your work experience (e.g., 3+ years of experience in web development)">{% if user.experience %}{{ user.experience }}{% endif %}</textarea>
+                                    </div>
 
-                            <div class="col-12">
-                                <label for="experience" class="form-label fw-medium">Work Experience</label>
-                                <textarea class="form-control" id="experience" name="experience" 
-                                          rows="3" placeholder="Describe your work experience (e.g., 3+ years of experience in web development)">{% if user.experience %}{{ user.experience }}{% endif %}</textarea>
-                            </div>
-
-                            <div class="col-12">
+                                    <div class="col-12">
                                 <label for="skills" class="form-label fw-medium">Skills</label>
                                 <input type="text" class="form-control" id="skills" name="skills" 
                                        value="{% if user.skills %}{{ user.skills }}{% endif %}" 

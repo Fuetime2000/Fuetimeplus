@@ -1017,7 +1017,12 @@ function initializeProfileScripts() {
                     </div>
                     <div class="text-center">
                         <h1 class="h4 mb-0 profile-name" data-user-id="{{ user.id }}">{{ user.full_name|default('User') }}</h1>
-                        <p class="text-muted mb-2 profile-work" data-user-id="{{ user.id }}">{{ user.work|default('Not specified') }}</p>
+                        <p class="text-muted mb-1 profile-work" data-user-id="{{ user.id }}">{{ user.work|default('') }}</p>
+                        {% if user.profession %}
+                            <p class="text-muted mb-2">
+                                <i class="fas fa-briefcase me-1"></i>{{ user.profession }}
+                            </p>
+                        {% endif %}
                     </div>
                     
                     <div class="profile-stats text-center mb-4">

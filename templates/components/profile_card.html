@@ -38,7 +38,13 @@
                                 })();
                                 /* ]]> */
                             </script>
-                            <p class="text-muted mb-1 profile-work" style="font-size: 0.8rem;" data-user-id="{{ user.id }}">{{ user.work|default('Not specified') }}</p>
+                            <p class="text-muted mb-1 profile-work" style="font-size: 0.8rem;" data-user-id="{{ user.id }}">
+                                {% if user.profession %}
+                                    {{ user.profession }}
+                                {% else %}
+                                    {{ user.work|default('Not specified') }}
+                                {% endif %}
+                            </p>
                             <div class="rating">
                                 {% set rating = user.average_rating|default(0.0)|float %}
                                 {% set full_stars = rating|int %}

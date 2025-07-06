@@ -21,6 +21,7 @@ class User(Base, UserMixin):
     work = db.Column(db.String(100))
     experience = db.Column(db.String(50))
     education = db.Column(db.String(200))
+    profession = db.Column(db.String(100))  # User's profession/occupation
     work_experience = db.Column(db.String(500))  # Stores companies worked at (comma-separated)
     date_of_birth = db.Column(db.Date, nullable=True)
     age = db.Column(db.Integer, nullable=True)
