@@ -1,9 +1,18 @@
+# Global rules for all crawlers
 User-agent: *
+Crawl-delay: 10
+
+# Allow crawling of public content
 Allow: /
 Allow: /profile/*
 Allow: /help
 Allow: /search
+Allow: /about
+Allow: /contact
+Allow: /privacy-policy
+Allow: /terms-of-service
 
+# Disallow sensitive areas
 Disallow: /login
 Disallow: /register
 Disallow: /messages
@@ -11,5 +20,32 @@ Disallow: /chat/*
 Disallow: /admin/*
 Disallow: /wallet
 Disallow: /account
+Disallow: /api/*
+Disallow: /debug/*
+Disallow: /private/*
+Disallow: /internal/*
+Disallow: /cgi-bin/
+Disallow: /*?*
+Disallow: /*.json$
+Disallow: /*.xml$
+Disallow: /*.php$
 
-Sitemap: {{ url_for('sitemap', _external=True) }}
+# Sitemap - REPLACE_WITH_YOUR_ACTUAL_DOMAIN
+Sitemap: https://fuetime.com/sitemap.xml
+
+# Googlebot specific rules
+User-agent: Googlebot
+Allow: /profile/*
+Disallow: /*.css$
+Disallow: /*.js$
+Disallow: /*.jpg$
+Disallow: /*.png$
+Disallow: /*.gif$
+
+# Bingbot specific rules
+User-agent: bingbot
+Crawl-delay: 10
+
+# Block AI crawlers
+User-agent: ChatGPT-User
+Disallow: /
