@@ -849,11 +849,49 @@ function initiateCall(userId) {
 }
 
 function showPaymentModal(requiredAmount, currentBalance) {
-    // You can implement a modal to show payment options
-    // For now, we'll just show an alert with a link to the wallet page
-    if (confirm(`Insufficient balance. You need ₹${requiredAmount} but only have ₹${currentBalance}. Would you like to add funds to your wallet?`)) {
-        window.location.href = '/wallet';
+    // Create modal HTML if it doesn't exist
+    if (!document.getElementById('insufficientBalanceModal')) {
+        const modalHTML = `
+        <div class="modal fade" id="insufficientBalanceModal" tabindex="-1" aria-labelledby="insufficientBalanceModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title text-danger fw-bold" id="insufficientBalanceModalLabel">Insufficient Balance</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-center py-4">
+                        <div class="mb-3">
+                            <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="mb-3">You don't have enough balance</h5>
+                        <div class="d-flex justify-content-center gap-4 mb-4">
+                            <div class="text-center">
+                                <div class="fs-5 fw-bold">₹${requiredAmount}</div>
+                                <div class="text-muted small">Required</div>
+                            </div>
+                            <div class="vr"></div>
+                            <div class="text-center">
+                                <div class="fs-5 fw-bold">₹${currentBalance}</div>
+                                <div class="text-muted small">Available</div>
+                            </div>
+                        </div>
+                        <p class="text-muted mb-4">Please add funds to your wallet to continue with the call</p>
+                    </div>
+                    <div class="modal-footer border-0 pt-0 justify-content-center">
+                        <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                        <a href="{{ url_for('wallet') }}" class="btn btn-primary px-4">
+                            <i class="bi bi-wallet2 me-2"></i>Add Funds
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('insufficientBalanceModal'));
+    modal.show();
 }
 
 function completeCall(callId) {
