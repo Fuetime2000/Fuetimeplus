@@ -8,31 +8,25 @@
             <!-- Profile Image and Info -->
             <div class="px-3">
                 <div class="d-flex position-relative" style="margin-top: -45px;">
-                    {% if user.photo %}
-                        {% set profile_img_url = url_for('static', filename='uploads/' + user.photo) %}
-                    {% else %}
-                        {% set profile_img_url = url_for('static', filename='img/default-avatar.png') %}
-                    {% endif %}
-                    <div class="d-flex align-items-start w-100">
-                        <div class="flex-shrink-0 me-3">
-                            <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none profile-image-link">
-                                <img src="{{ profile_img_url }}"
-                                     class="rounded-circle border-3 border-white shadow profile-image user-profile-image"
-                                     alt="{{ user.full_name|default('User') }}"
-                                     data-user-id="{{ user.id }}"
-                                     style="width: 90px; height: 90px; object-fit: cover;"
-                                     data-fallback-src="{{ url_for('static', filename='img/default-avatar.png') }}">
-                            </a>
-                        </div>
-                        <div class="flex-grow-1 mt-2">
-                            <div class="d-flex align-items-center mb-1">
-                                <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none">
-                                    <h5 class="mb-0 text-primary hover-underline profile-name profile-name-text" style="font-size: 1.1rem; line-height: 1.2;" data-user-id="{{ user.id }}">
-                                        {{ user.full_name|default('User')|title }}
-                                    </h5>
+                    <div class="position-relative text-center" style="min-width: 90px;">
+                        {% if user.photo %}
+                            {% set profile_img_url = url_for('static', filename='uploads/' + user.photo) %}
+                        {% else %}
+                            {% set profile_img_url = url_for('static', filename='img/default-avatar.png') %}
+                        {% endif %}
+                        <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none profile-image-link">
+                            <img src="{{ profile_img_url }}"
+                                 class="rounded-circle border-3 border-white shadow-sm profile-image user-profile-image"
+                                 alt="{{ user.full_name|default('User') }}"
+                                 data-user-id="{{ user.id }}"
+                                 data-fallback-src="{{ url_for('static', filename='img/default-avatar.png') }}">
+                        </a>
+                        <div class="mt-2 text-center">
+                            <div class="d-inline-flex align-items-center">
+                                <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none me-2">
+                                    <h6 class="mb-0 text-primary hover-underline profile-name profile-name-text" style="font-size: 1rem;" data-user-id="{{ user.id }}">{{ user.full_name|default('User')|title }}</h6>
                                 </a>
-                                <span class="ms-2 online-status-dot {% if user.is_online %}online{% else %}offline{% endif %}" 
-                                      title="{% if user.is_online %}Online{% else %}Offline{% endif %}"></span>
+                                <span class="online-status-dot {% if user.is_online %}online{% else %}offline{% endif %}" title="{% if user.is_online %}Online{% else %}Offline{% endif %}"></span>
                             </div>
                             <script type="text/javascript">
                                 /* <![CDATA[ */
@@ -44,7 +38,7 @@
                                 })();
                                 /* ]]> */
                             </script>
-                            <p class="text-muted mb-1 profile-work" style="font-size: 0.9rem; font-weight: 500;" data-user-id="{{ user.id }}">
+                            <p class="text-muted mb-1 profile-work" style="font-size: 0.8rem;" data-user-id="{{ user.id }}">
                                 {% if user.profession %}
                                     {{ user.profession }}
                                 {% else %}
@@ -84,7 +78,6 @@
                                 </span>
                             </div>
                         </div>
-                    </div>
                     </div>
                     
                 </div>
