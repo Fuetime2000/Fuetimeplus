@@ -14,8 +14,11 @@ from email.mime.multipart import MIMEMultipart
 from flask import Flask, request, render_template, redirect, url_for, flash, session, jsonify, make_response, send_from_directory, Response, g, send_file, current_app
 from werkzeug.utils import secure_filename
 from blueprints.main import bp as main_bp
+from flask import jsonify, request
+from werkzeug.security import generate_password_hash
 from flask_login import UserMixin, login_user, login_required, logout_user, current_user
 from functools import wraps
+from flask_cors import CORS
 from flask_socketio import emit, join_room, leave_room
 from flask_babel import gettext as _
 
@@ -30,6 +33,7 @@ import events
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_pyfile('config.py')
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Initialize Flask-Migrate
 from extensions import db
@@ -1980,6 +1984,7 @@ def debug_session():
         'remote_addr': request.remote_addr,
     }
     return jsonify(debug_info), 200, {'Content-Type': 'application/json'}
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

@@ -8,36 +8,36 @@
             <!-- Profile Image and Info -->
             <div class="px-3">
                 <div class="d-flex position-relative" style="margin-top: -45px;">
-                    <div class="position-relative text-center" style="min-width: 90px;">
-                        {% if user.photo %}
-                            {% set profile_img_url = url_for('static', filename='uploads/' + user.photo) %}
-                        {% else %}
-                            {% set profile_img_url = url_for('static', filename='img/default-avatar.png') %}
-                        {% endif %}
-                        <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none profile-image-link">
-                            <img src="{{ profile_img_url }}"
-                                 class="rounded-circle border-3 border-white shadow-sm profile-image user-profile-image"
-                                 alt="{{ user.full_name|default('User') }}"
-                                 data-user-id="{{ user.id }}"
-                                 data-fallback-src="{{ url_for('static', filename='img/default-avatar.png') }}">
-                        </a>
-                        <div class="mt-2 text-center">
-                            <div class="d-inline-flex align-items-center">
+                    <div class="d-flex align-items-start" style="width: 100%;">
+                        <!-- Profile Image -->
+                        <div class="me-3" style="min-width: 90px;">
+                            {% if user.photo %}
+                                {% set profile_img_url = url_for('static', filename='uploads/' + user.photo) %}
+                            {% else %}
+                                {% set profile_img_url = url_for('static', filename='img/default-avatar.png') %}
+                            {% endif %}
+                            <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none profile-image-link">
+                                <img src="{{ profile_img_url }}"
+                                     class="rounded-circle border-3 border-white shadow-sm profile-image user-profile-image"
+                                     alt="{{ user.full_name|default('User') }}"
+                                     data-user-id="{{ user.id }}"
+                                     data-fallback-src="{{ url_for('static', filename='img/default-avatar.png') }}"
+                                     style="width: 90px; height: 90px; object-fit: cover;">
+                            </a>
+                        </div>
+                        
+                        <!-- User Info (Name, Profession, Rating) -->
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-1">
                                 <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none me-2">
-                                    <h6 class="mb-0 text-primary hover-underline profile-name profile-name-text" style="font-size: 1rem;" data-user-id="{{ user.id }}">{{ user.full_name|default('User')|title }}</h6>
+                                    <h6 class="mb-0 text-primary hover-underline profile-name profile-name-text d-inline" style="font-size: 1rem;" data-user-id="{{ user.id }}">
+                                        {{ user.full_name|default('User')|title }}
+                                    </h6>
                                 </a>
-                                <span class="online-status-dot {% if user.is_online %}online{% else %}offline{% endif %}" title="{% if user.is_online %}Online{% else %}Offline{% endif %}"></span>
+                                <span class="online-status-dot {% if user.is_online %}online{% else %}offline{% endif %}" 
+                                      title="{% if user.is_online %}Online{% else %}Offline{% endif %}"></span>
                             </div>
-                            <script type="text/javascript">
-                                /* <![CDATA[ */
-                                (function() {
-                                    const userFullName = '{{ user.full_name|default("User")|tojson|safe }}';
-                                    const userId = '{{ user.id|tojson|safe }}';
-                                    window.userFullName = userFullName;
-                                    window.userId = userId;
-                                })();
-                                /* ]]> */
-                            </script>
+                            
                             <p class="text-muted mb-1 profile-work" style="font-size: 0.8rem;" data-user-id="{{ user.id }}">
                                 {% if user.profession %}
                                     {{ user.profession }}
@@ -45,7 +45,8 @@
                                     {{ user.work|default('Not specified') }}
                                 {% endif %}
                             </p>
-                            <div class="rating">
+                            
+                            <div class="rating mb-1">
                                 {% set rating = user.average_rating|default(0.0)|float %}
                                 {% set full_stars = rating|int %}
                                 {% set decimal_part = rating % 1 %}
@@ -77,6 +78,27 @@
                                     ({{ user.total_reviews|default(0) }})
                                 </span>
                             </div>
+                            
+                            {% if user.current_location %}
+                            <div class="mt-1">
+                                <small class="text-muted distance-badge" data-user-id="{{ user.id }}" data-location="{{ user.current_location }}" 
+                                       style="font-size: 0.7rem; display: inline-flex; align-items: center;">
+                                    <i class="fas fa-map-marker-alt me-1"></i> <span class="distance-text">Calculating...</span>
+                                </small>
+                            </div>
+                            {% endif %}
+                            
+                            <script type="text/javascript">
+                                /* <![CDATA[ */
+                                (function() {
+                                    const userFullName = '{{ user.full_name|default("User")|tojson|safe }}';
+                                    const userId = '{{ user.id|tojson|safe }}';
+                                    window.userFullName = userFullName;
+                                    window.userId = userId;
+                                })();
+                                /* ]]> */
+                            </script>
+                        </div>
                         </div>
                     </div>
                     
@@ -401,15 +423,36 @@ function fallbackShare(url) {
 </script>
 
 <style>
-.user-profile-image {
-    width: 90px;
-    height: 90px;
-    object-fit: cover;
+.distance-badge {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    color: #6c757d;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
 }
 
-.profile-name-text {
-    font-size: 0.9rem;
-    color: #6b48ff !important;
+.distance-badge i {
+    font-size: 0.65rem;
+    color: #6c757d;
+    margin-right: 3px;
+}
+
+.distance-badge .distance-text {
+    font-weight: 500;
+}
+
+.distance-badge:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: #495057;
+}
+
+.distance-badge:hover i {
+    color: #4a6cf7;
 }
 
 .online-status-dot {
@@ -711,11 +754,188 @@ function initializeWebSocketListeners() {
     });
 }
 
+// Calculate distance between two coordinates using Haversine formula
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    // Convert coordinates to numbers and handle any potential string formatting
+    lat1 = parseFloat(lat1);
+    lon1 = parseFloat(lon1);
+    lat2 = parseFloat(lat2);
+    lon2 = parseFloat(lon2);
+    
+    // Check if any coordinate is invalid
+    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
+        return null;
+    }
+    
+    const R = 6371; // Radius of the Earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Distance in km
+}
+
+// Update distance for all users
+function updateAllDistances(position) {
+    try {
+        console.log('Updating distances for position:', position);
+        
+        const userLat = position.coords.latitude;
+        const userLng = position.coords.longitude;
+        console.log(`User location: ${userLat}, ${userLng}`);
+        
+        const distanceBadges = document.querySelectorAll('.distance-badge');
+        console.log(`Found ${distanceBadges.length} distance badges to update`);
+        
+        distanceBadges.forEach((badge, index) => {
+            try {
+                // Get the location from the data attribute
+                const userLocation = badge.dataset.location;
+                console.log(`Processing badge ${index + 1}, location data:`, userLocation);
+                
+                if (!userLocation) {
+                    console.log(`Badge ${index + 1}: No location data`);
+                    badge.style.opacity = '0.7';
+                    const distanceTextEl = badge.querySelector('.distance-text');
+                    if (distanceTextEl) {
+                        distanceTextEl.textContent = 'No location';
+                    }
+                    return;
+                }
+                
+                // Parse the location string "lat,lng"
+                const [targetLat, targetLng] = userLocation.split(',').map(coord => coord.trim());
+                console.log(`Badge ${index + 1}: Parsed location - lat: ${targetLat}, lng: ${targetLng}`);
+                
+                const distance = calculateDistance(userLat, userLng, targetLat, targetLng);
+                console.log(`Badge ${index + 1}: Calculated distance: ${distance} km`);
+                
+                if (distance === null) {
+                    console.log(`Badge ${index + 1}: Invalid distance calculation`);
+                    badge.style.opacity = '0.7';
+                    const distanceTextEl = badge.querySelector('.distance-text');
+                    if (distanceTextEl) {
+                        distanceTextEl.textContent = 'Invalid location';
+                    }
+                    return;
+                }
+                
+                // Update the distance text
+                let distanceText;
+                if (distance < 1) {
+                    distanceText = `${Math.round(distance * 1000)}m away`;
+                } else if (distance < 10) {
+                    distanceText = `${distance.toFixed(1)}km away`;
+                } else {
+                    distanceText = `${Math.round(distance)}km away`;
+                }
+                
+                console.log(`Badge ${index + 1}: Display text: ${distanceText}`);
+                
+                // Update the badge
+                const distanceTextEl = badge.querySelector('.distance-text');
+                if (distanceTextEl) {
+                    distanceTextEl.textContent = distanceText;
+                } else {
+                    badge.textContent = distanceText;
+                }
+                
+                // Make sure the badge is visible
+                badge.style.display = 'inline-flex';
+                badge.style.opacity = '1';
+                
+            } catch (e) {
+                console.error(`Error processing badge ${index + 1}:`, e);
+                badge.style.opacity = '0.7';
+                const distanceTextEl = badge.querySelector('.distance-text');
+                if (distanceTextEl) {
+                    distanceTextEl.textContent = 'Error';
+                }
+            }
+        });
+        
+        console.log('Finished updating all distances');
+        
+    } catch (error) {
+        console.error('Error in updateAllDistances:', error);
+        // Update all badges to show error state
+        document.querySelectorAll('.distance-badge').forEach(badge => {
+            const distanceTextEl = badge.querySelector('.distance-text');
+            if (distanceTextEl) {
+                distanceTextEl.textContent = 'Error calculating distance';
+            }
+            badge.style.opacity = '0.7';
+        });
+    }
+}
+
+// Initialize distance calculation when page loads
+function initializeDistanceCalculation() {
+    try {
+        console.log('Initializing distance calculation...');
+        
+        // Check if there are any distance badges on the page
+        const distanceBadges = document.querySelectorAll('.distance-badge');
+        console.log(`Found ${distanceBadges.length} distance badges`);
+        
+        if (distanceBadges.length === 0) {
+            console.log('No distance badges found on the page');
+            return;
+        }
+        
+        if (navigator.geolocation) {
+            console.log('Requesting geolocation...');
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    console.log('Geolocation successful:', position);
+                    updateAllDistances(position);
+                },
+                (error) => {
+                    console.error('Error getting location:', error);
+                    // Update all badges to show error state
+                    document.querySelectorAll('.distance-badge').forEach(badge => {
+                        const distanceTextEl = badge.querySelector('.distance-text');
+                        if (distanceTextEl) {
+                            distanceTextEl.textContent = 'Location unavailable';
+                        }
+                        badge.style.opacity = '0.7';
+                    });
+                },
+                { 
+                    enableHighAccuracy: true, 
+                    timeout: 10000, 
+                    maximumAge: 5 * 60 * 1000 // 5 minutes
+                }
+            );
+        } else {
+            console.log('Geolocation not supported');
+            // Hide distance badges if geolocation is not supported
+            document.querySelectorAll('.distance-badge').forEach(badge => {
+                const distanceTextEl = badge.querySelector('.distance-text');
+                if (distanceTextEl) {
+                    distanceTextEl.textContent = 'Location not supported';
+                }
+                badge.style.opacity = '0.7';
+            });
+        }
+    } catch (error) {
+        console.error('Error in initializeDistanceCalculation:', error);
+    }
+}
+
 // Start WebSocket initialization when DOM is ready
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeWebSocketListeners);
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeWebSocketListeners();
+        initializeDistanceCalculation();
+    });
 } else {
     initializeWebSocketListeners();
+    initializeDistanceCalculation();
 }
 
 // Function to reinitialize card scripts after content update
