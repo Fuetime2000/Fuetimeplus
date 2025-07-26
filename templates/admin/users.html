@@ -55,6 +55,9 @@
                     <button class="btn btn-warning btn-sm" onclick="toggleStatus('{{ user.id }}')" title="{{ _('Toggle Status') }}">
                         <i class="fas fa-toggle-on"></i>
                     </button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteUser('{{ user.id }}', '{{ user.full_name }}')" title="{{ _('Delete User') }}">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -89,6 +92,45 @@ function sendMessage(userId) {
 function toggleStatus(userId) {
     // Implement status toggle functionality
     console.log('Toggle status for user:', userId);
+}
+
+// Delete user
+function deleteUser(userId, userName) {
+    if (confirm(`Are you sure you want to delete user: ${userName}? This action cannot be undone.`)) {
+        fetch(`/admin/api/users/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Remove the user card from the UI
+                const userCard = document.querySelector(`.user-card[data-user-id="${userId}"]`);
+                if (userCard) {
+                    userCard.style.opacity = '0.5';
+                    setTimeout(() => {
+                        userCard.remove();
+                        // Show success message
+                        alert('User deleted successfully');
+                    }, 300);
+                }
+            } else {
+                throw new Error(data.message || 'Failed to delete user');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting user:', error);
+            alert(`Error: ${error.message || 'Failed to delete user'}`);
+        });
+    }
 }
 </script>
 {% endblock %}

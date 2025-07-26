@@ -3352,6 +3352,128 @@ def admin_users():
     users = User.query.all()
     return render_template('admin/users.html', users=users)
 
+@app.route('/admin/api/users/<int:user_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    print(f"\n{'='*80}")
+    print(f"Starting deletion of user {user_id}")
+    print(f"Current user: {current_user.id} ({current_user.email})")
+    
+    try:
+        # Prevent deleting own account
+        if user_id == current_user.id:
+            return jsonify({
+                'success': False,
+                'message': 'You cannot delete your own account while logged in.'
+            }), 400
+            
+        # Use the existing Flask-SQLAlchemy session
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': f'User with ID {user_id} not found.'
+            }), 404
+            
+        print(f"Found user: {user.id} ({user.email})")
+        
+        # Start with a clean session
+        db.session.rollback()
+        
+        try:
+            # Try to delete the user directly first
+            print("Attempting to delete user...")
+            db.session.delete(user)
+            db.session.commit()
+            print("User deleted successfully")
+            return jsonify({
+                'success': True,
+                'message': 'User deleted successfully'
+            })
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Direct deletion failed: {str(e)}")
+            print("Will try to delete related records first...")
+            
+            # If direct deletion fails, try to identify which related records are causing issues
+            try:
+                print("\nChecking for related records...")
+                from models import (
+                    Message, ContactRequest, Review, HelpRequest, 
+                    UserInteraction, Transaction, UserBehavior, 
+                    FraudAlert, Call, PortfolioRating, Portfolio, 
+                    PortfolioProject, ProjectTechnology, PortfolioSkill,
+                    Donation
+                )
+                
+                # Print counts of related records
+                print(f"Messages: {Message.query.filter((Message.sender_id == user_id) | (Message.receiver_id == user_id)).count()}")
+                print(f"Contact Requests: {ContactRequest.query.filter((ContactRequest.requester_id == user_id) | (ContactRequest.requested_id == user_id)).count()}")
+                print(f"Reviews: {Review.query.filter((Review.reviewer_id == user_id) | (Review.worker_id == user_id)).count()}")
+                print(f"Help Requests: {HelpRequest.query.filter_by(user_id=user_id).count()}")
+                print(f"User Interactions: {UserInteraction.query.filter((UserInteraction.viewer_id == user_id) | (UserInteraction.viewed_id == user_id)).count()}")
+                print(f"Transactions: {Transaction.query.filter((Transaction.sender_id == user_id) | (Transaction.recipient_id == user_id)).count()}")
+                print(f"User Behaviors: {UserBehavior.query.filter_by(user_id=user_id).count()}")
+                print(f"Fraud Alerts: {FraudAlert.query.filter_by(user_id=user_id).count()}")
+                print(f"Calls: {Call.query.filter((Call.caller_id == user_id) | (Call.callee_id == user_id)).count()}")
+                print(f"Portfolio Ratings: {PortfolioRating.query.filter_by(user_id=user_id).count()}")
+                print(f"Portfolios: {Portfolio.query.filter_by(user_id=user_id).count()}")
+                print(f"Donations: {Donation.query.filter((Donation.donor_id == user_id) | (Donation.recipient_id == user_id)).count()}")
+                
+                # Now try to delete the user again with cascade
+                print("\nTrying to delete user with cascade...")
+                db.session.delete(user)
+                db.session.commit()
+                print("User deleted successfully with cascade")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'User deleted successfully with cascade'
+                })
+                
+            except Exception as e:
+                db.session.rollback()
+                import traceback
+                error_trace = traceback.format_exc()
+                print("\n" + "="*80)
+                print("FULL ERROR DETAILS:")
+                print(error_trace)
+                print("="*80 + "\n")
+                
+                # Get database inspector to check tables
+                inspector = db.inspect(db.engine)
+                print("\nDatabase tables:", inspector.get_table_names())
+                
+                return jsonify({
+                    'success': False,
+                    'message': 'Failed to delete user',
+                    'error': str(e),
+                    'error_type': str(type(e).__name__),
+                    'tables': inspector.get_table_names()
+                }), 500
+                
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print("\n" + "="*80)
+        print("UNEXPECTED ERROR:")
+        print(error_trace)
+        print("="*80 + "\n")
+        
+        return jsonify({
+            'success': False,
+            'message': 'An unexpected error occurred',
+            'error': str(e),
+            'error_type': str(type(e).__name__)
+        }), 500
+    
+    finally:
+        print(f"\n{'='*80}")
+        print("Deletion process completed")
+        print(f"{'='*80}\n")
+
 @app.route('/admin/user/<username>')
 @app.route('/admin/user/<username>/risk-profile')
 @login_required
