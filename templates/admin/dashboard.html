@@ -181,10 +181,10 @@
                             <tr>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <img src="{{ user.photo or url_for('static', filename='img/default-avatar.png') }}" 
-                                             class="rounded-circle me-2" width="32" height="32" alt="">
-                                        <a href="{{ url_for('admin_user_detail', username=user.username) }}" class="text-decoration-none">
-                                            {{ user.full_name }}
+                                        <a href="{{ url_for('admin_user_detail', username=user.username) }}" class="d-flex align-items-center text-decoration-none">
+                                            <img src="{{ user.photo or url_for('static', filename='img/default-avatar.png') }}" 
+                                                 class="rounded-circle me-2" width="32" height="32" alt="{{ user.full_name }}">
+                                            <span>{{ user.full_name }}</span>
                                         </a>
                                     </div>
                                 </td>

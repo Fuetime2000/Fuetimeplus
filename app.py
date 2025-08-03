@@ -16,12 +16,17 @@ from werkzeug.utils import secure_filename
 from blueprints.main import bp as main_bp
 from flask import jsonify, request
 from werkzeug.security import generate_password_hash
+from datetime import timedelta
 from flask_login import UserMixin, login_user, login_required, logout_user, current_user
 from functools import wraps
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 from flask_socketio import emit, join_room, leave_room
 from flask_babel import gettext as _
 
+
+# Import API blueprint
+from blueprints.api import api_bp
 
 # Import models
 from models.user import User
@@ -33,12 +38,24 @@ import events
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_pyfile('config.py')
-CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Configure CORS for API
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:3000", "http://localhost:5000", "https://yourdomain.com"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
 # Initialize Flask-Migrate
 from extensions import db
 from flask_migrate import Migrate
 migrate = Migrate(app, db)
+
+# Register API blueprint
+app.register_blueprint(api_bp, url_prefix='/api')
 
 # Import SocketIO
 try:
@@ -86,6 +103,14 @@ app.config['MAIL_USERNAME'] = 'dipendra998405@gmail.com'  # Your Gmail address
 app.config['MAIL_PASSWORD'] = 'qrjz depb zcsz zcba'  # Your App Password
 app.config['MAIL_DEFAULT_SENDER'] = 'dipendra998405@gmail.com'  # Your Gmail address
 app.config['MAIL_DEBUG'] = True  # Enable debug output
+
+# JWT configuration
+jwt = JWTManager(app)
+app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
+app.config['JWT_BLACKLIST_ENABLED'] = True
+app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access', 'refresh']
 
 # Session configuration
 app.config['SESSION_TYPE'] = 'filesystem'
@@ -3329,9 +3354,23 @@ def admin_dashboard():
     total_reviews = Review.query.count()
     total_help_requests = HelpRequest.query.count()
     pending_help_requests = HelpRequest.query.filter_by(status='pending').count()
+    
+    # Get recent users and format their photo URLs
     recent_users = User.query.order_by(User.created_at.desc()).limit(5).all()
+    for user in recent_users:
+        if user.photo and not user.photo.startswith(('http://', 'https://')):
+            user.photo = url_for('serve_profile_pic', filename=user.photo, _external=True)
+    
     recent_transactions = Transaction.query.join(User).order_by(Transaction.created_at.desc()).limit(5).all()
     recent_help_requests = HelpRequest.query.order_by(HelpRequest.created_at.desc()).limit(5).all()
+    
+    # Format current user's photo URL
+    current_user_photo = None
+    if current_user.photo:
+        if current_user.photo.startswith(('http://', 'https://')):
+            current_user_photo = current_user.photo
+        else:
+            current_user_photo = url_for('serve_profile_pic', filename=current_user.photo, _external=True)
     
     return render_template('admin/dashboard.html',
                          total_users=total_users,
@@ -3342,6 +3381,7 @@ def admin_dashboard():
                          pending_help_requests=pending_help_requests,
                          recent_users=recent_users,
                          recent_transactions=recent_transactions,
+                         current_user_photo=current_user_photo,
                          recent_help_requests=recent_help_requests)
 
 @app.route('/admin/users')

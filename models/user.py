@@ -1,7 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from models.base import Base, db
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+import jwt
+from flask import current_app
 
 class User(Base, UserMixin):
     __tablename__ = 'user'
@@ -169,6 +171,51 @@ class User(Base, UserMixin):
         
         # Return up to the requested limit
         return results[:limit]
+
+    def generate_auth_token(self, expires_in=3600):
+        """Generate a JWT token for API authentication"""
+        payload = {
+            'user_id': self.id,
+            'exp': datetime.utcnow() + timedelta(seconds=expires_in),
+            'iat': datetime.utcnow(),
+            'sub': str(self.id)
+        }
+        return jwt.encode(
+            payload,
+            current_app.config['SECRET_KEY'],
+            algorithm='HS256'
+        )
+
+    @staticmethod
+    def verify_auth_token(token):
+        """Verify JWT token and return user if valid"""
+        try:
+            payload = jwt.decode(
+                token,
+                current_app.config['SECRET_KEY'],
+                algorithms=['HS256']
+            )
+            return User.query.get(payload['user_id'])
+        except jwt.ExpiredSignatureError:
+            return None  # Token expired
+        except (jwt.InvalidTokenError, jwt.DecodeError):
+            return None  # Invalid token
+
+    def to_dict(self):
+        """Convert user object to dictionary for JSON serialization"""
+        return {
+            'id': self.id,
+            'email': self.email,
+            'full_name': self.full_name,
+            'user_type': self.user_type,
+            'phone': self.phone,
+            'is_verified': self.email_verified,
+            'wallet_balance': float(self.wallet_balance) if self.wallet_balance else 0.0,
+            'profile_picture': self.photo,
+            'is_online': self.is_online,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'is_active': self.active
+        }
 
     def __repr__(self):
         return f'<User {self.username}>'

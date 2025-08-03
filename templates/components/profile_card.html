@@ -81,9 +81,23 @@
                             
                             {% if user.current_location %}
                             <div class="mt-1">
-                                <small class="text-muted distance-badge" data-user-id="{{ user.id }}" data-location="{{ user.current_location }}" 
-                                       style="font-size: 0.7rem; display: inline-flex; align-items: center;">
-                                    <i class="fas fa-map-marker-alt me-1"></i> <span class="distance-text">Calculating...</span>
+                                <small class="text-muted distance-badge" 
+                                       data-user-id="{{ user.id }}"
+                                       data-viewer-location="{{ current_user.current_location if current_user.is_authenticated and current_user.current_location else '' }}"
+                                       data-profile-location="{{ user.current_location if user.current_location else '' }}"
+                                       style="font-size: 0.7rem; display: inline-flex; align-items: center; opacity: 1;">
+                                    <i class="fas fa-map-marker-alt me-1"></i> 
+                                    <span class="distance-text">
+                                        {% if user.current_location %}
+                                            <span class="location-text">{{ user.current_location }}</span>
+                                            <span class="distance-value" style="display: none;"></span>
+                                        {% else %}
+                                            Location not set
+                                        {% endif %}
+                                    </span>
+                                    <div class="spinner-border spinner-border-sm ms-2 d-none" role="status" style="width: 0.7rem; height: 0.7rem;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
                                 </small>
                             </div>
                             {% endif %}
@@ -806,17 +820,19 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 // Update distance for all users
-function updateAllDistances(position) {
+function updateAllDistances(viewerPosition) {
     try {
-        if (!position || !position.coords) {
-            throw new Error('Invalid position data received');
+        if (!viewerPosition || !viewerPosition.coords) {
+            console.error('Invalid position data');
+            updateBadgesWithError('Location unavailable');
+            return;
         }
-
-        console.log('Updating distances for position:', position);
         
-        const userLat = position.coords.latitude;
-        const userLng = position.coords.longitude;
-        console.log(`User location: ${userLat}, ${userLng}`);
+        console.log('Updating distances for viewer position:', viewerPosition);
+        
+        const viewerLat = viewerPosition.coords.latitude;
+        const viewerLng = viewerPosition.coords.longitude;
+        console.log(`Viewer location: ${viewerLat}, ${viewerLng}`);
         
         const distanceBadges = document.querySelectorAll('.distance-badge');
         console.log(`Found ${distanceBadges.length} distance badges to update`);
@@ -825,7 +841,7 @@ function updateAllDistances(position) {
             console.log('No distance badges found on the page');
             return;
         }
-        
+
         let hasValidLocation = false;
         
         distanceBadges.forEach((badge, index) => {
@@ -833,33 +849,34 @@ function updateAllDistances(position) {
                 // Reset badge state
                 badge.style.opacity = '1';
                 
-                // Get the location from the data attribute
-                const userLocation = badge.dataset.location;
-                console.log(`Processing badge ${index + 1}, location data:`, userLocation);
+                // Get the profile's location from the data attribute
+                const profileLocation = badge.dataset.profileLocation;
+                console.log(`Processing badge ${index + 1}, profile location:`, profileLocation);
                 
-                if (!userLocation) {
-                    console.log(`Badge ${index + 1}: No location data`);
+                if (!profileLocation) {
+                    console.log(`Badge ${index + 1}: No profile location data`);
                     updateBadgeText(badge, 'Location not set');
                     return;
                 }
                 
-                // Parse the location string "lat,lng"
-                const coords = userLocation.split(',').map(coord => coord.trim());
-                if (coords.length !== 2) {
-                    console.log(`Badge ${index + 1}: Invalid location format`);
-                    updateBadgeText(badge, 'Invalid format');
+                // Check if the profile location is in coordinate format
+                const profileCoords = profileLocation.split(',').map(coord => coord.trim());
+                if (profileCoords.length !== 2 || isNaN(profileCoords[0]) || isNaN(profileCoords[1])) {
+                    console.log(`Badge ${index + 1}: Profile location is not in coordinate format`);
+                    updateBadgeText(badge, profileLocation); // Show the location text as fallback
                     return;
                 }
                 
-                const [targetLat, targetLng] = coords;
-                console.log(`Badge ${index + 1}: Parsed location - lat: ${targetLat}, lng: ${targetLng}`);
+                const [profileLat, profileLng] = profileCoords.map(Number);
+                console.log(`Badge ${index + 1}: Parsed profile location - lat: ${profileLat}, lng: ${profileLng}`);
                 
-                const distance = calculateDistance(userLat, userLng, targetLat, targetLng);
+                // Calculate distance between viewer and profile
+                const distance = calculateDistance(viewerLat, viewerLng, profileLat, profileLng);
                 console.log(`Badge ${index + 1}: Calculated distance:`, distance, 'km');
                 
                 if (distance === null) {
                     console.log(`Badge ${index + 1}: Invalid distance calculation`);
-                    updateBadgeText(badge, 'Invalid location', true);
+                    updateBadgeText(badge, profileLocation, true); // Fallback to showing location text
                     return;
                 }
                 
@@ -875,13 +892,15 @@ function updateAllDistances(position) {
                 } else {
                     distanceText = `${Math.round(distance)}km away`;
                 }
-                
+            
                 console.log(`Badge ${index + 1}: Display text: ${distanceText}`);
                 updateBadgeText(badge, distanceText);
                 
             } catch (e) {
                 console.error(`Error processing badge ${index + 1}:`, e);
-                updateBadgeText(badge, 'Error', true);
+                // Try to show the location text if available
+                const locationText = badge.dataset.profileLocation || 'Location error';
+                updateBadgeText(badge, locationText, true);
             }
         });
         
@@ -894,10 +913,7 @@ function updateAllDistances(position) {
         
     } catch (error) {
         console.error('Error in updateAllDistances:', error);
-        // Update all badges to show error state
-        document.querySelectorAll('.distance-badge').forEach(badge => {
-            updateBadgeText(badge, 'Location error', true);
-        });
+        updateBadgesWithError('Error calculating distance');
     }
 }
 
@@ -924,46 +940,219 @@ function initializeDistanceCalculation() {
             console.log('No distance badges found on the page');
             return;
         }
+
+        // Get the current user's location from the first badge (should be the same for all)
+        const viewerLocation = distanceBadges[0]?.dataset.viewerLocation;
         
-        if (navigator.geolocation) {
-            console.log('Requesting geolocation...');
+        // Process each badge
+        distanceBadges.forEach(badge => {
+            const profileLocation = badge.dataset.profileLocation;
             
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    console.log('Geolocation successful:', position);
-                    updateAllDistances(position);
-                },
-                (error) => {
-                    console.error('Error getting location:', error);
-                    // Update all badges to show error state
-                    document.querySelectorAll('.distance-badge').forEach(badge => {
-                        const distanceTextEl = badge.querySelector('.distance-text');
-                        if (distanceTextEl) {
-                            distanceTextEl.textContent = 'Location unavailable';
-                        }
-                        badge.style.opacity = '0.7';
-                    });
-                },
-                { 
-                    enableHighAccuracy: true, 
-                    timeout: 10000, 
-                    maximumAge: 5 * 60 * 1000 // 5 minutes
+            if (viewerLocation && profileLocation) {
+                // If we have both locations, calculate distance via API
+                console.log('Calculating distance via API for badge:', badge.dataset.userId);
+                calculateDistanceViaAPI(viewerLocation, profileLocation, badge);
+            } else if (navigator.geolocation && profileLocation) {
+                // If we only have profile location, try to get current location
+                console.log('Getting current location for distance calculation');
+                
+                // Show loading state for this badge
+                const spinner = badge.querySelector('.spinner-border');
+                const distanceText = badge.querySelector('.distance-text');
+                if (spinner) spinner.classList.remove('d-none');
+                if (distanceText) distanceText.textContent = 'Calculating...';
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        console.log('Geolocation successful, calculating distance');
+                        const currentLocation = `${position.coords.latitude},${position.coords.longitude}`;
+                        calculateDistanceViaAPI(currentLocation, profileLocation, badge);
+                    },
+                    (error) => {
+                        console.error('Error getting location:', error);
+                        updateBadgeWithError(badge, 'Location services disabled');
+                    },
+                    { 
+                        enableHighAccuracy: true, 
+                        timeout: 10000, 
+                        maximumAge: 5 * 60 * 1000 // 5 minutes
+                    }
+                );
+            } else {
+                console.log('Not enough location data available for badge:', badge.dataset.userId);
+                // Just show the location text if available
+                const locationText = badge.querySelector('.location-text');
+                if (locationText) {
+                    badge.querySelector('.distance-text').textContent = locationText.textContent;
                 }
-            );
-        } else {
-            console.log('Geolocation not supported');
-            // Hide distance badges if geolocation is not supported
-            document.querySelectorAll('.distance-badge').forEach(badge => {
-                const distanceTextEl = badge.querySelector('.distance-text');
-                if (distanceTextEl) {
-                    distanceTextEl.textContent = 'Location not supported';
-                }
-                badge.style.opacity = '0.7';
-            });
-        }
+            }
+        });
     } catch (error) {
         console.error('Error in initializeDistanceCalculation:', error);
+        updateBadgesWithError('Error calculating distance');
     }
+}
+
+// Clean and validate location string
+function cleanLocationString(location) {
+    if (!location) return '';
+    // Remove any extra whitespace and special characters that might cause issues
+    return location.toString().trim().replace(/[\n\r\t]+/g, ' ').replace(/\s+/g, ' ');
+}
+
+// Calculate distance using the server API
+function calculateDistanceViaAPI(fromLocation, toLocation, badgeElement) {
+    if (!fromLocation || !toLocation) {
+        console.error('Missing location data for distance calculation');
+        updateBadgeWithError(badgeElement, 'Location data missing');
+        return;
+    }
+    
+    // Clean the location strings
+    const cleanFrom = cleanLocationString(fromLocation);
+    const cleanTo = cleanLocationString(toLocation);
+    
+    // Always attempt distance calculation even if location strings are the same
+    // because they might have different coordinates
+    
+    const spinner = badgeElement.querySelector('.spinner-border');
+    const distanceValue = badgeElement.querySelector('.distance-value');
+    const locationText = badgeElement.querySelector('.location-text');
+    
+    // Show loading state
+    if (spinner) spinner.classList.remove('d-none');
+    if (distanceValue) distanceValue.textContent = 'Calculating...';
+    
+    // Create URL with properly encoded parameters
+    const apiUrl = new URL('/api/v1/calculate-distance', window.location.origin);
+    apiUrl.searchParams.append('from', cleanFrom);
+    apiUrl.searchParams.append('to', cleanTo);
+    
+    console.log('Calling distance API with URL:', apiUrl.toString());
+    
+    // Call the API to calculate distance with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
+    console.log('Calling distance API:', {
+        from: cleanFrom,
+        to: cleanTo,
+        url: apiUrl.toString()
+    });
+    
+    fetch(apiUrl, {
+        signal: controller.signal,
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        clearTimeout(timeoutId);
+        console.log('API Response status:', response.status);
+        
+        if (!response.ok) {
+            // Try to get error details from response
+            return response.text().then(text => {
+                let errorDetails = `HTTP error! status: ${response.status}`;
+                try {
+                    const json = JSON.parse(text);
+                    errorDetails = json.error || json.details || errorDetails;
+                } catch (e) {
+                    errorDetails = text || errorDetails;
+                }
+                throw new Error(errorDetails);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('API Response data:', data);
+        return data;
+    })
+    .then(data => {
+        console.log('Distance calculation successful:', data);
+        if (data.distance_display) {
+            // Show the distance
+            if (distanceValue) {
+                distanceValue.textContent = data.distance_display;
+                distanceValue.style.display = 'inline';
+                if (locationText) locationText.style.display = 'none';
+            }
+        } else {
+            // Fallback to showing location text if distance calculation failed
+            updateBadgeWithError(badgeElement, locationText ? locationText.textContent : 'Unknown location');
+        }
+    })
+    .catch(error => {
+        console.error('Error calculating distance:', {
+            error: error.message,
+            from: cleanFrom,
+            to: cleanTo,
+            stack: error.stack
+        });
+        
+        // More specific error messages based on error type
+        let errorMsg = 'Distance unavailable';
+        if (error.name === 'AbortError') {
+            errorMsg = 'Request timed out';
+        } else if (error.message.includes('400')) {
+            errorMsg = 'Could not determine location';
+        } else if (error.message.includes('network')) {
+            errorMsg = 'Network error';
+        }
+        
+        // Show the location text as fallback
+        if (locationText && locationText.textContent.trim()) {
+            updateBadgeWithError(badge, locationText.textContent);
+        } else {
+            updateBadgeWithError(badge, errorMsg);
+        }
+    })
+    .finally(() => {
+        // Hide spinner
+        if (spinner) spinner.classList.add('d-none');
+    });
+}
+
+// Update a single badge with an error message
+function updateBadgeWithError(badge, message) {
+    const distanceTextEl = badge.querySelector('.distance-text');
+    const locationText = badge.querySelector('.location-text');
+    const distanceValue = badge.querySelector('.distance-value');
+    const spinner = badge.querySelector('.spinner-border');
+    
+    if (spinner) spinner.classList.add('d-none');
+    
+    if (distanceTextEl) {
+        // Show either the error message or the location text
+        if (locationText && locationText.textContent.trim()) {
+            distanceTextEl.textContent = locationText.textContent;
+        } else {
+            distanceTextEl.textContent = message;
+        }
+    }
+    
+    if (distanceValue) {
+        distanceValue.style.display = 'none';
+    }
+    
+    badge.style.opacity = '0.7';
+}
+
+// Helper function to update all badges with an error message
+function updateBadgesWithError(message) {
+    document.querySelectorAll('.distance-badge').forEach(badge => {
+        const distanceTextEl = badge.querySelector('.distance-text');
+        if (distanceTextEl) {
+            // Only show error if we don't have a location text to show
+            const locationText = badge.dataset.profileLocation;
+            if (!locationText) {
+                distanceTextEl.textContent = message;
+            }
+        }
+        badge.style.opacity = '0.7';
+    });
 }
 
 // Start WebSocket initialization when DOM is ready
