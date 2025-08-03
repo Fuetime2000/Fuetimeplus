@@ -88,14 +88,11 @@
                                        style="font-size: 0.7rem; display: inline-flex; align-items: center; opacity: 1;">
                                     <i class="fas fa-map-marker-alt me-1"></i> 
                                     <span class="distance-text">
-                                        {% if user.current_location %}
-                                            <span class="location-text">{{ user.current_location }}</span>
-                                            <span class="distance-value" style="display: none;"></span>
-                                        {% else %}
-                                            Location not set
-                                        {% endif %}
+                                        <span class="location-text" style="display: none;">{{ user.current_location if user.current_location else 'Location not set' }}</span>
+                                        <span class="distance-value">Calculating distance...</span>
+                                        <span class="error-message text-danger" style="display: none;"></span>
                                     </span>
-                                    <div class="spinner-border spinner-border-sm ms-2 d-none" role="status" style="width: 0.7rem; height: 0.7rem;">
+                                    <div class="spinner-border spinner-border-sm ms-2" role="status" style="width: 0.7rem; height: 0.7rem;">
                                         <span class="visually-hidden">Loading...</span>
                                     </div>
                                 </small>
@@ -1004,6 +1001,29 @@ function cleanLocationString(location) {
 function calculateDistanceViaAPI(fromLocation, toLocation, badgeElement) {
     console.log('calculateDistanceViaAPI called with:', { fromLocation, toLocation });
     
+    // Get UI elements
+    const spinner = badgeElement.querySelector('.spinner-border');
+    const distanceText = badgeElement.querySelector('.distance-text');
+    const locationText = badgeElement.querySelector('.location-text');
+    const distanceValue = badgeElement.querySelector('.distance-value');
+    const errorMessageEl = badgeElement.querySelector('.error-message') || document.createElement('span');
+    
+    // Initialize error message element if it doesn't exist
+    if (!errorMessageEl.classList.contains('error-message')) {
+        errorMessageEl.className = 'error-message text-danger';
+        if (distanceText) {
+            distanceText.appendChild(errorMessageEl);
+        }
+    }
+    
+    // Reset UI state
+    badgeElement.classList.remove('text-danger');
+    if (spinner) spinner.classList.remove('d-none');
+    if (distanceValue) distanceValue.style.display = 'none';
+    if (locationText) locationText.style.display = 'none';
+    if (errorMessageEl) errorMessageEl.style.display = 'none';
+    
+    // Validate input
     if (!fromLocation || !toLocation) {
         console.error('Missing location data for distance calculation');
         updateBadgeWithError(badgeElement, 'Location data missing');
@@ -1016,102 +1036,71 @@ function calculateDistanceViaAPI(fromLocation, toLocation, badgeElement) {
     
     console.log('Cleaned locations:', { cleanFrom, cleanTo });
     
-    const spinner = badgeElement.querySelector('.spinner-border');
-    const distanceText = badgeElement.querySelector('.distance-text');
-    const locationText = badgeElement.querySelector('.location-text');
-    const distanceValue = badgeElement.querySelector('.distance-value') || document.createElement('span');
-    
-    if (!distanceValue.classList.contains('distance-value')) {
-        distanceValue.className = 'distance-value';
-        if (distanceText) {
-            distanceText.appendChild(distanceValue);
-        }
-    }
-    
-    // Show loading state
-    if (spinner) spinner.classList.remove('d-none');
-    distanceValue.textContent = 'Calculating...';
-    if (locationText) locationText.style.display = 'none';
-    distanceValue.style.display = 'inline';
-    
-    // Create URL with properly encoded parameters
-    const apiUrl = new URL('/api/v1/calculate-distance', window.location.origin);
-    apiUrl.searchParams.append('from', cleanFrom);
-    apiUrl.searchParams.append('to', cleanTo);
-    
-    console.log('API URL:', apiUrl.toString());
-    
-    // Call the API to calculate distance with timeout
+    // Set a timeout for the API call
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.error('Distance calculation timed out');
+        updateBadgeWithError(badgeElement, 'Request timed out');
+    }, 10000); // 10 second timeout
     
-    fetch(apiUrl, {
+    // Make the API call with proper error handling
+    fetch(`/api/v1/calculate-distance?from=${encodeURIComponent(cleanFrom)}&to=${encodeURIComponent(cleanTo)}`, {
         signal: controller.signal,
         headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
         },
         credentials: 'same-origin' // Include cookies for authentication
     })
     .then(response => {
         clearTimeout(timeoutId);
-        console.log('API Response status:', response.status);
         
         if (!response.ok) {
-            return response.text().then(text => {
-                console.error('API Error response:', text);
-                let errorDetails = `HTTP error! status: ${response.status}`;
-                try {
-                    const json = JSON.parse(text);
-                    errorDetails = json.error || json.details || errorDetails;
-                } catch (e) {
-                    errorDetails = text || errorDetails;
-                }
-                throw new Error(errorDetails);
+            return response.json().then(errData => {
+                throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+            }).catch(() => {
+                throw new Error(`HTTP error! status: ${response.status}`);
             });
         }
         return response.json();
     })
     .then(data => {
-        console.log('API Response data:', data);
+        console.log('Distance calculation response:', data);
         
-        if (data && data.distance_display) {
-            // Show the distance
-            distanceValue.textContent = data.distance_display;
-            distanceValue.style.display = 'inline';
-            if (locationText) locationText.style.display = 'none';
-            console.log('Updated distance display to:', data.distance_display);
+        if (data.success && data.distance_display) {
+            // Update the badge with the distance
+            if (distanceValue) {
+                distanceValue.textContent = data.distance_display;
+                distanceValue.style.display = 'inline';
+            }
+            if (spinner) spinner.classList.add('d-none');
+            
+            console.log('Distance updated successfully');
         } else {
-            throw new Error('Invalid response format from server');
+            throw new Error(data.error || 'Failed to calculate distance');
         }
     })
     .catch(error => {
-        console.error('Error in calculateDistanceViaAPI:', {
-            error: error.message,
-            name: error.name,
-            stack: error.stack,
-            from: cleanFrom,
-            to: cleanTo
-        });
+        console.error('Error calculating distance:', error);
+        clearTimeout(timeoutId);
         
-        // More specific error messages based on error type
-        let errorMsg = 'Distance unavailable';
+        // Determine the appropriate error message
+        let errorMessage = 'Error calculating distance';
         if (error.name === 'AbortError') {
-            errorMsg = 'Request timed out';
+            errorMessage = 'Request timed out';
         } else if (error.message.includes('400')) {
-            errorMsg = 'Could not determine location';
+            errorMessage = 'Error location';
+        } else if (error.message.includes('404')) {
+            errorMessage = 'Location not found';
         } else if (error.message.includes('network')) {
-            errorMsg = 'Network error';
+            errorMessage = 'Network error';
+        } else if (error.message) {
+            errorMessage = error.message;
         }
         
-        console.log('Error occurred, falling back to location text');
-        
-        // Show the location text as fallback
-        if (locationText && locationText.textContent.trim()) {
-            updateBadgeWithError(badgeElement, locationText.textContent);
-        } else {
-            updateBadgeWithError(badgeElement, errorMsg);
-        }
+        // Show the error message - explicitly prevent showing location text
+        updateBadgeWithError(badgeElement, errorMessage);
     })
     .finally(() => {
         // Hide spinner
@@ -1127,43 +1116,54 @@ function updateBadgeWithError(badge, message) {
         console.error('No badge element provided to updateBadgeWithError');
         return;
     }
-            
+    
+    // Get all relevant elements
     const distanceTextEl = badge.querySelector('.distance-text');
     const locationText = badge.querySelector('.location-text');
     const distanceValue = badge.querySelector('.distance-value');
+    let errorMessageEl = badge.querySelector('.error-message');
     const spinner = badge.querySelector('.spinner-border');
-            
-    // Make sure the message is a string
-    const displayText = String(message || 'Unknown location').trim();
-            
-    // Hide spinner if it exists
-    if (spinner) spinner.classList.add('d-none');
-            
-    // Update the badge content
-    if (distanceTextEl) {
-        // If we have a location text element, update it and show it
-        if (locationText) {
-            locationText.textContent = displayText;
-            locationText.style.display = 'inline';
-        }
-        // Hide the distance value if it exists
-        if (distanceValue) {
-            distanceValue.style.display = 'none';
-        }
-        // Also update the distance text as fallback
-        distanceTextEl.textContent = displayText;
-    } else {
-        // Fallback to directly updating the badge content
-        badge.textContent = displayText;
-    }
-            
-    console.log('Updated badge with error message:', displayText);
-            
-    if (distanceValue) {
-        distanceValue.style.display = 'none';
+    
+    // Create error message element if it doesn't exist
+    if (!errorMessageEl && distanceTextEl) {
+        errorMessageEl = document.createElement('span');
+        errorMessageEl.className = 'error-message text-danger';
+        distanceTextEl.appendChild(errorMessageEl);
     }
     
-    badge.style.opacity = '0.7';
+    // Make sure the message is a string and not the location text
+    let errorMessage = String(message || 'Unable to calculate distance').trim();
+    
+    // If the message is actually the location text, replace it with a generic error
+    const locationTextContent = locationText ? locationText.textContent.trim() : '';
+    if (errorMessage === locationTextContent) {
+        errorMessage = 'Unable to calculate distance';
+    }
+    
+    console.error('Error in distance calculation:', errorMessage);
+    
+    // Hide spinner and other elements
+    if (spinner) spinner.classList.add('d-none');
+    if (distanceValue) distanceValue.style.display = 'none';
+    if (locationText) locationText.style.display = 'none';
+    
+    // Show error message
+    if (errorMessageEl) {
+        errorMessageEl.textContent = errorMessage;
+        errorMessageEl.style.display = 'inline';
+        errorMessageEl.className = 'error-message text-danger';
+    } else if (distanceTextEl) {
+        // Fallback if error message element doesn't exist
+        distanceTextEl.textContent = `Error: ${errorMessage}`;
+    } else {
+        // Last resort fallback
+        badge.textContent = `Error: ${errorMessage}`;
+    }
+    
+    // Add error class for styling
+    badge.classList.add('text-danger');
+    
+    console.log('Updated badge with error state');
 }
 
 // Helper function to update all badges with an error message
