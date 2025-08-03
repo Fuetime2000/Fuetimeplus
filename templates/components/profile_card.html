@@ -1002,6 +1002,8 @@ function cleanLocationString(location) {
 
 // Calculate distance using the server API
 function calculateDistanceViaAPI(fromLocation, toLocation, badgeElement) {
+    console.log('calculateDistanceViaAPI called with:', { fromLocation, toLocation });
+    
     if (!fromLocation || !toLocation) {
         console.error('Missing location data for distance calculation');
         updateBadgeWithError(badgeElement, 'Location data missing');
@@ -1012,48 +1014,52 @@ function calculateDistanceViaAPI(fromLocation, toLocation, badgeElement) {
     const cleanFrom = cleanLocationString(fromLocation);
     const cleanTo = cleanLocationString(toLocation);
     
-    // Always attempt distance calculation even if location strings are the same
-    // because they might have different coordinates
+    console.log('Cleaned locations:', { cleanFrom, cleanTo });
     
     const spinner = badgeElement.querySelector('.spinner-border');
-    const distanceValue = badgeElement.querySelector('.distance-value');
+    const distanceText = badgeElement.querySelector('.distance-text');
     const locationText = badgeElement.querySelector('.location-text');
+    const distanceValue = badgeElement.querySelector('.distance-value') || document.createElement('span');
+    
+    if (!distanceValue.classList.contains('distance-value')) {
+        distanceValue.className = 'distance-value';
+        if (distanceText) {
+            distanceText.appendChild(distanceValue);
+        }
+    }
     
     // Show loading state
     if (spinner) spinner.classList.remove('d-none');
-    if (distanceValue) distanceValue.textContent = 'Calculating...';
+    distanceValue.textContent = 'Calculating...';
+    if (locationText) locationText.style.display = 'none';
+    distanceValue.style.display = 'inline';
     
     // Create URL with properly encoded parameters
     const apiUrl = new URL('/api/v1/calculate-distance', window.location.origin);
     apiUrl.searchParams.append('from', cleanFrom);
     apiUrl.searchParams.append('to', cleanTo);
     
-    console.log('Calling distance API with URL:', apiUrl.toString());
+    console.log('API URL:', apiUrl.toString());
     
     // Call the API to calculate distance with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
-    console.log('Calling distance API:', {
-        from: cleanFrom,
-        to: cleanTo,
-        url: apiUrl.toString()
-    });
     
     fetch(apiUrl, {
         signal: controller.signal,
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
-        }
+        },
+        credentials: 'same-origin' // Include cookies for authentication
     })
     .then(response => {
         clearTimeout(timeoutId);
         console.log('API Response status:', response.status);
         
         if (!response.ok) {
-            // Try to get error details from response
             return response.text().then(text => {
+                console.error('API Error response:', text);
                 let errorDetails = `HTTP error! status: ${response.status}`;
                 try {
                     const json = JSON.parse(text);
@@ -1068,28 +1074,24 @@ function calculateDistanceViaAPI(fromLocation, toLocation, badgeElement) {
     })
     .then(data => {
         console.log('API Response data:', data);
-        return data;
-    })
-    .then(data => {
-        console.log('Distance calculation successful:', data);
-        if (data.distance_display) {
+        
+        if (data && data.distance_display) {
             // Show the distance
-            if (distanceValue) {
-                distanceValue.textContent = data.distance_display;
-                distanceValue.style.display = 'inline';
-                if (locationText) locationText.style.display = 'none';
-            }
+            distanceValue.textContent = data.distance_display;
+            distanceValue.style.display = 'inline';
+            if (locationText) locationText.style.display = 'none';
+            console.log('Updated distance display to:', data.distance_display);
         } else {
-            // Fallback to showing location text if distance calculation failed
-            updateBadgeWithError(badgeElement, locationText ? locationText.textContent : 'Unknown location');
+            throw new Error('Invalid response format from server');
         }
     })
     .catch(error => {
-        console.error('Error calculating distance:', {
+        console.error('Error in calculateDistanceViaAPI:', {
             error: error.message,
+            name: error.name,
+            stack: error.stack,
             from: cleanFrom,
-            to: cleanTo,
-            stack: error.stack
+            to: cleanTo
         });
         
         // More specific error messages based on error type
@@ -1102,37 +1104,61 @@ function calculateDistanceViaAPI(fromLocation, toLocation, badgeElement) {
             errorMsg = 'Network error';
         }
         
+        console.log('Error occurred, falling back to location text');
+        
         // Show the location text as fallback
         if (locationText && locationText.textContent.trim()) {
-            updateBadgeWithError(badge, locationText.textContent);
+            updateBadgeWithError(badgeElement, locationText.textContent);
         } else {
-            updateBadgeWithError(badge, errorMsg);
+            updateBadgeWithError(badgeElement, errorMsg);
         }
     })
     .finally(() => {
         // Hide spinner
         if (spinner) spinner.classList.add('d-none');
+        console.log('Finished distance calculation attempt');
     });
 }
 
 // Update a single badge with an error message
 function updateBadgeWithError(badge, message) {
+    console.log('updateBadgeWithError called:', { message });
+    if (!badge) {
+        console.error('No badge element provided to updateBadgeWithError');
+        return;
+    }
+            
     const distanceTextEl = badge.querySelector('.distance-text');
     const locationText = badge.querySelector('.location-text');
     const distanceValue = badge.querySelector('.distance-value');
     const spinner = badge.querySelector('.spinner-border');
-    
+            
+    // Make sure the message is a string
+    const displayText = String(message || 'Unknown location').trim();
+            
+    // Hide spinner if it exists
     if (spinner) spinner.classList.add('d-none');
-    
+            
+    // Update the badge content
     if (distanceTextEl) {
-        // Show either the error message or the location text
-        if (locationText && locationText.textContent.trim()) {
-            distanceTextEl.textContent = locationText.textContent;
-        } else {
-            distanceTextEl.textContent = message;
+        // If we have a location text element, update it and show it
+        if (locationText) {
+            locationText.textContent = displayText;
+            locationText.style.display = 'inline';
         }
+        // Hide the distance value if it exists
+        if (distanceValue) {
+            distanceValue.style.display = 'none';
+        }
+        // Also update the distance text as fallback
+        distanceTextEl.textContent = displayText;
+    } else {
+        // Fallback to directly updating the badge content
+        badge.textContent = displayText;
     }
-    
+            
+    console.log('Updated badge with error message:', displayText);
+            
     if (distanceValue) {
         distanceValue.style.display = 'none';
     }
@@ -1155,16 +1181,45 @@ function updateBadgesWithError(message) {
     });
 }
 
-// Start WebSocket initialization when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
+// Enhanced initialization for distance calculation
+function initializeApp() {
+    console.log('Initializing application...');
+    
+    // Initialize WebSocket listeners
+    try {
         initializeWebSocketListeners();
-        initializeDistanceCalculation();
-    });
-} else {
-    initializeWebSocketListeners();
-    initializeDistanceCalculation();
+        console.log('WebSocket listeners initialized');
+    } catch (error) {
+        console.error('Error initializing WebSocket listeners:', error);
+    }
+    
+    // Initialize distance calculation with a small delay to ensure DOM is fully loaded
+    setTimeout(() => {
+        try {
+            console.log('Initializing distance calculation...');
+            initializeDistanceCalculation();
+        } catch (error) {
+            console.error('Error initializing distance calculation:', error);
+            updateBadgesWithError('Error loading distances');
+        }
+    }, 500); // 500ms delay to ensure DOM is ready
 }
+
+// Start initialization when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    // If document is already loaded, run immediately
+    initializeApp();
+}
+
+// Also reinitialize when the page is shown (for single-page applications)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        console.log('Page became visible, reinitializing distance calculation');
+        initializeDistanceCalculation();
+    }
+});
 
 // Function to reinitialize card scripts after content update
 function initializeCardScripts() {
