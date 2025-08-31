@@ -9,6 +9,24 @@
 <link href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 <style>
+    /* Hide header and navbar on registration page */
+    .navbar, .site-title, .footer {
+        display: none !important;
+    }
+    /* Ensure content takes full height */
+    html, body {
+        height: 100%;
+    }
+    body {
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+    .container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+    }
     .form-container {
         max-width: 600px;
         margin: 2rem auto;

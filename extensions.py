@@ -5,6 +5,9 @@ from flask_babel import Babel
 from flask_caching import Cache
 from flask_socketio import SocketIO
 from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_mail import Mail
 import sys
 
 # Initialize extensions
@@ -13,6 +16,11 @@ login_manager = LoginManager()
 migrate = Migrate()
 babel = Babel()
 cache = Cache()
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 # Configure SocketIO with gevent
 try:
@@ -37,3 +45,6 @@ socketio = SocketIO(
 
 # Initialize CSRF protection
 csrf = CSRFProtect()
+
+# Initialize Flask-Mail
+mail = Mail()

@@ -11,6 +11,12 @@ class Technology(db.Model):
     __tablename__ = 'portfolio_technologies'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
+    
+    # Relationships
+    projects = db.relationship('Project', 
+                             secondary=project_technologies, 
+                             back_populates='technologies',
+                             overlaps='projects_tech')
 
     def __repr__(self):
         return f'<Technology {self.name}>'
@@ -33,9 +39,12 @@ class Project(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     
     # Relationships
-    user = db.relationship('User', backref=db.backref('projects', lazy='dynamic'))
-    technologies = db.relationship('Technology', secondary=project_technologies, lazy='joined',
-                                 backref=db.backref('projects', lazy=True))
+    user = db.relationship('User', back_populates='projects')
+    technologies = db.relationship('Technology', 
+                                 secondary=project_technologies, 
+                                 lazy='joined',
+                                 back_populates='projects',
+                                 overlaps='projects_tech')
 
     def __repr__(self):
         return f'<Project {self.title}>'

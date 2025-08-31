@@ -13,6 +13,7 @@ class Portfolio(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
+    user = db.relationship('User', back_populates='portfolio')
     projects = db.relationship('PortfolioProject', backref='portfolio', lazy=True, cascade='all, delete-orphan')
     skills = db.relationship('PortfolioSkill', backref='portfolio', lazy=True, cascade='all, delete-orphan')
     ratings = db.relationship('PortfolioRating', backref='portfolio', lazy=True, cascade='all, delete-orphan')
@@ -45,13 +46,16 @@ class PortfolioProject(db.Model):
     category = db.Column(db.String(100))
     
     # Relationships
-    user = db.relationship('User', backref=db.backref('portfolio_projects', lazy='dynamic'))
+    user = db.relationship('User', 
+                         back_populates='portfolio_projects',
+                         overlaps='projects')
     
     # Relationship to technologies
     technologies = db.relationship('ProjectTechnology', 
-                                 backref='project_ref',
+                                 back_populates='project',
                                  lazy='dynamic',
-                                 cascade='all, delete-orphan')
+                                 cascade='all, delete-orphan',
+                                 overlaps='project_ref')
     
     def __repr__(self):
         return f'<PortfolioProject {self.title}>'
@@ -63,8 +67,10 @@ class ProjectTechnology(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('portfolio_projects.id', ondelete='CASCADE'), nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
     
-    # Simple relationship without backref
-    project = db.relationship('PortfolioProject')
+    # Relationship to project
+    project = db.relationship('PortfolioProject',
+                            back_populates='technologies',
+                            overlaps='project_ref')
     
     def __repr__(self):
         return f'<ProjectTechnology {self.name} (Project ID: {self.project_id})>'

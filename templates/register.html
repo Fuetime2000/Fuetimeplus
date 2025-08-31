@@ -2,11 +2,41 @@
 
 {% block title %}Register - FueTime{% endblock %}
 
+{% block head %}
+<style>
+    /* Hide header and navbar on registration page */
+    .navbar, .site-title, .footer {
+        display: none !important;
+    }
+    /* Ensure content takes full height */
+    html, body {
+        height: 100%;
+    }
+    body {
+        display: flex;
+        flex-direction: column;
+    }
+    .register-page {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Tooltip element -->
 <div id="fieldTooltip" class="field-tooltip"></div>
-<!-- Include translations file -->
-<script src="{{ url_for('static', filename='js/register_translations.js') }}"></script>
+    <!-- Include Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    
+    <!-- Include translations file -->
+    <script src="{{ url_for('static', filename='js/register_translations.js') }}"></script>
+    
+    <!-- Include Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <style>
     .field-tooltip {
@@ -162,14 +192,205 @@
 
                             <div class="col-md-6 worker-field">
                                 <div class="form-floating mb-3 position-relative">
-                                    <input type="text" class="form-control" id="work" name="work" 
-                                           required
-                                           maxlength="100"
-                                           placeholder="Your profession"
-                                           value="{{ form_data.get('work', '') }}">
+                                    <select class="form-select select2" id="work" name="work" required>
+                                        <option value="" data-translate="select_profession">Select Profession</option>
+                                        <option value="Software Developer">Software Developer</option>
+                                        <option value="Web Developer">Web Developer</option>
+                                        <option value="Mobile App Developer">Mobile App Developer</option>
+                                        <option value="Data Scientist">Data Scientist</option>
+                                        <option value="AI Engineer">AI Engineer</option>
+                                        <option value="Machine Learning Engineer">Machine Learning Engineer</option>
+                                        <option value="Cloud Engineer">Cloud Engineer</option>
+                                        <option value="Cyber Security Specialist">Cyber Security Specialist</option>
+                                        <option value="Network Engineer">Network Engineer</option>
+                                        <option value="UI/UX Designer">UI/UX Designer</option>
+                                        <option value="Graphic Designer">Graphic Designer</option>
+                                        <option value="Video Editor">Video Editor</option>
+                                        <option value="Digital Marketer">Digital Marketer</option>
+                                        <option value="SEO Specialist">SEO Specialist</option>
+                                        <option value="Content Writer">Content Writer</option>
+                                        <option value="Copywriter">Copywriter</option>
+                                        <option value="Social Media Manager">Social Media Manager</option>
+                                        <option value="Virtual Assistant">Virtual Assistant</option>
+                                        <option value="Accountant">Accountant</option>
+                                        <option value="Financial Analyst">Financial Analyst</option>
+                                        <option value="Banker">Banker</option>
+                                        <option value="Insurance Advisor">Insurance Advisor</option>
+                                        <option value="Business Consultant">Business Consultant</option>
+                                        <option value="HR Manager">HR Manager</option>
+                                        <option value="Recruiter">Recruiter</option>
+                                        <option value="Teacher">Teacher</option>
+                                        <option value="Tutor">Tutor</option>
+                                        <option value="Professor">Professor</option>
+                                        <option value="Online Instructor">Online Instructor</option>
+                                        <option value="Doctor">Doctor</option>
+                                        <option value="Nurse">Nurse</option>
+                                        <option value="Pharmacist">Pharmacist</option>
+                                        <option value="Lab Technician">Lab Technician</option>
+                                        <option value="Physiotherapist">Physiotherapist</option>
+                                        <option value="Dentist">Dentist</option>
+                                        <option value="Surgeon">Surgeon</option>
+                                        <option value="Pathologist">Pathologist</option>
+                                        <option value="Radiologist">Radiologist</option>
+                                        <option value="Veterinarian">Veterinarian</option>
+                                        <option value="Homeopathic Doctor">Homeopathic Doctor</option>
+                                        <option value="Ayurvedic Doctor">Ayurvedic Doctor</option>
+                                        <option value="Electrician">Electrician</option>
+                                        <option value="Plumber">Plumber</option>
+                                        <option value="Helpher">Helpher</option>
+                                        <option value="Carpenter">Carpenter</option>
+                                        <option value="Mason">Mason</option>
+                                        <option value="Painter">Painter</option>
+                                        <option value="Welder">Welder</option>
+                                        <option value="Blacksmith">Blacksmith</option>
+                                        <option value="Fitter">Fitter</option>
+                                        <option value="Turner">Turner</option>
+                                        <option value="Machinist">Machinist</option>
+                                        <option value="Draftsman">Draftsman</option>
+                                        <option value="Mechanic">Mechanic</option>
+                                        <option value="Auto Electrician">Auto Electrician</option>
+                                        <option value="Driver">Driver</option>
+                                        <option value="Truck Driver">Truck Driver</option>
+                                        <option value="Bus Driver">Bus Driver</option>
+                                        <option value="Taxi Driver">Taxi Driver</option>
+                                        <option value="Delivery Rider">Delivery Rider</option>
+                                        <option value="Tailor">Tailor</option>
+                                        <option value="Fashion Designer">Fashion Designer</option>
+                                        <option value="Beautician">Beautician</option>
+                                        <option value="Hair Stylist">Hair Stylist</option>
+                                        <option value="Photographer">Photographer</option>
+                                        <option value="Videographer">Videographer</option>
+                                        <option value="Event Planner">Event Planner</option>
+                                        <option value="Chef">Chef</option>
+                                        <option value="Cook">Cook</option>
+                                        <option value="Waiter">Waiter</option>
+                                        <option value="Bartender">Bartender</option>
+                                        <option value="Hotel Manager">Hotel Manager</option>
+                                        <option value="Receptionist">Receptionist</option>
+                                        <option value="Housekeeping Staff">Housekeeping Staff</option>
+                                        <option value="Security Guard">Security Guard</option>
+                                        <option value="Farmer">Farmer</option>
+                                        <option value="Agriculture Worker">Agriculture Worker</option>
+                                        <option value="Dairy Farmer">Dairy Farmer</option>
+                                        <option value="Poultry Worker">Poultry Worker</option>
+                                        <option value="Fisherman">Fisherman</option>
+                                        <option value="Gardener">Gardener</option>
+                                        <option value="Horticulturist">Horticulturist</option>
+                                        <option value="Florist">Florist</option>
+                                        <option value="Courier Service">Courier Service</option>
+                                        <option value="Call Center Agent">Call Center Agent</option>
+                                        <option value="Customer Support Executive">Customer Support Executive</option>
+                                        <option value="Sales Executive">Sales Executive</option>
+                                        <option value="Marketing Executive">Marketing Executive</option>
+                                        <option value="Field Salesman">Field Salesman</option>
+                                        <option value="Real Estate Agent">Real Estate Agent</option>
+                                        <option value="Property Dealer">Property Dealer</option>
+                                        <option value="Shopkeeper">Shopkeeper</option>
+                                        <option value="Cashier">Cashier</option>
+                                        <option value="Store Manager">Store Manager</option>
+                                        <option value="Warehouse Worker">Warehouse Worker</option>
+                                        <option value="Logistics Manager">Logistics Manager</option>
+                                        <option value="Supply Chain Manager">Supply Chain Manager</option>
+                                        <option value="Civil Engineer">Civil Engineer</option>
+                                        <option value="Mechanical Engineer">Mechanical Engineer</option>
+                                        <option value="Electrical Engineer">Electrical Engineer</option>
+                                        <option value="Electronics Engineer">Electronics Engineer</option>
+                                        <option value="Chemical Engineer">Chemical Engineer</option>
+                                        <option value="Petroleum Engineer">Petroleum Engineer</option>
+                                        <option value="Mining Engineer">Mining Engineer</option>
+                                        <option value="Metallurgical Engineer">Metallurgical Engineer</option>
+                                        <option value="Aerospace Engineer">Aerospace Engineer</option>
+                                        <option value="Automobile Engineer">Automobile Engineer</option>
+                                        <option value="Architect">Architect</option>
+                                        <option value="Interior Designer">Interior Designer</option>
+                                        <option value="Surveyor">Surveyor</option>
+                                        <option value="Construction Worker">Construction Worker</option>
+                                        <option value="Crane Operator">Crane Operator</option>
+                                        <option value="Excavator Operator">Excavator Operator</option>
+                                        <option value="Machine Operator">Machine Operator</option>
+                                        <option value="Factory Worker">Factory Worker</option>
+                                        <option value="Assembly Line Worker">Assembly Line Worker</option>
+                                        <option value="Quality Inspector">Quality Inspector</option>
+                                        <option value="Production Supervisor">Production Supervisor</option>
+                                        <option value="NGO Worker">NGO Worker</option>
+                                        <option value="Social Worker">Social Worker</option>
+                                        <option value="Fitness Trainer">Fitness Trainer</option>
+                                        <option value="Yoga Instructor">Yoga Instructor</option>
+                                        <option value="Sports Coach">Sports Coach</option>
+                                        <option value="PE Teacher">PE Teacher</option>
+                                        <option value="Physiotherapy Assistant">Physiotherapy Assistant</option>
+                                        <option value="Music Teacher">Music Teacher</option>
+                                        <option value="Musician">Musician</option>
+                                        <option value="Singer">Singer</option>
+                                        <option value="Dancer">Dancer</option>
+                                        <option value="Actor">Actor</option>
+                                        <option value="Model">Model</option>
+                                        <option value="Choreographer">Choreographer</option>
+                                        <option value="Lyricist">Lyricist</option>
+                                        <option value="Script Writer">Script Writer</option>
+                                        <option value="Video Animator">Video Animator</option>
+                                        <option value="Film Director">Film Director</option>
+                                        <option value="Cameraman">Cameraman</option>
+                                        <option value="Sound Engineer">Sound Engineer</option>
+                                        <option value="Lawyer">Lawyer</option>
+                                        <option value="Legal Advisor">Legal Advisor</option>
+                                        <option value="Judge">Judge</option>
+                                        <option value="Advocate">Advocate</option>
+                                        <option value="Clerk">Clerk</option>
+                                        <option value="Journalist">Journalist</option>
+                                        <option value="News Reporter">News Reporter</option>
+                                        <option value="Editor">Editor</option>
+                                        <option value="Translator">Translator</option>
+                                        <option value="Proofreader">Proofreader</option>
+                                        <option value="Librarian">Librarian</option>
+                                        <option value="Tour Guide">Tour Guide</option>
+                                        <option value="Travel Agent">Travel Agent</option>
+                                        <option value="Airline Staff">Airline Staff</option>
+                                        <option value="Pilot">Pilot</option>
+                                        <option value="Cabin Crew">Cabin Crew</option>
+                                        <option value="Ground Staff">Ground Staff</option>
+                                        <option value="Ship Crew">Ship Crew</option>
+                                        <option value="Sailor">Sailor</option>
+                                        <option value="Firefighter">Firefighter</option>
+                                        <option value="Home Guard">Home Guard</option>
+                                        <option value="Watchman">Watchman</option>
+                                        <option value="Politician">Politician</option>
+                                        <option value="Government Clerk">Government Clerk</option>
+                                        <option value="Postman">Postman</option>
+                                        <option value="Ticket Collector">Ticket Collector</option>
+                                        <option value="Bus Conductor">Bus Conductor</option>
+                                        <option value="Mining Worker">Mining Worker</option>
+                                        <option value="Oil Rig Worker">Oil Rig Worker</option>
+                                        <option value="Power Plant Technician">Power Plant Technician</option>
+                                        <option value="Solar Technician">Solar Technician</option>
+                                        <option value="Wind Turbine Technician">Wind Turbine Technician</option>
+                                        <option value="Electric Line Man">Electric Line Man</option>
+                                        <option value="AC Technician">AC Technician</option>
+                                        <option value="Refrigerator Mechanic">Refrigerator Mechanic</option>
+                                        <option value="Mobile Repair Technician">Mobile Repair Technician</option>
+                                        <option value="Computer Hardware Engineer">Computer Hardware Engineer</option>
+                                        <option value="CCTV Technician">CCTV Technician</option>
+                                        <option value="Radio Jockey">Radio Jockey</option>
+                                        <option value="Voice Over Artist">Voice Over Artist</option>
+                                        <option value="Podcaster">Podcaster</option>
+                                        <option value="Blogger">Blogger</option>
+                                        <option value="YouTuber">YouTuber</option>
+                                        <option value="Influencer">Influencer</option>
+                                        <option value="App Tester">App Tester</option>
+                                        <option value="Game Developer">Game Developer</option>
+                                        <option value="Game Designer">Game Designer</option>
+                                        <option value="Esports Player">Esports Player</option>
+                                        <option value="Casino Dealer">Casino Dealer</option>
+                                        <option value="Astrologer">Astrologer</option>
+                                        <option value="Priest">Priest</option>
+                                        <option value="Pandit">Pandit</option>
+                                        <option value="Imam">Imam</option>
+                                        <option value="Monk">Monk</option>
+                                        <option value="Teacher of Religious Studies">Teacher of Religious Studies</option>
+                                    </select>
                                     <label for="work" data-translate="work">Work/Profession</label>
                                     <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" data-translate="work">
-                                        Please enter your work/profession
+                                        Please select your work/profession
                                     </div>
                                 </div>
                             </div>
@@ -194,14 +415,113 @@
 
                             <div class="col-md-6 worker-field">
                                 <div class="form-floating mb-3 position-relative">
-                                    <input type="text" class="form-control" id="education" name="education" 
-                                           required
-                                           maxlength="200"
-                                           placeholder="Your education"
-                                           value="{{ form_data.get('education', '') }}">
+                                    <select class="form-select select2" id="education" name="education" required>
+                                        <option value="" data-translate="select_education">Select Education</option>
+                                        <option value="Primary School">Primary School</option>
+                                        <option value="Middle School">Middle School</option>
+                                        <option value="High School">High School</option>
+                                        <option value="Higher Secondary (12th)">Higher Secondary (12th)</option>
+                                        <option value="Diploma in Engineering">Diploma in Engineering</option>
+                                        <option value="ITI Certificate">ITI Certificate</option>
+                                        <option value="Polytechnic">Polytechnic</option>
+                                        <option value="Vocational Training">Vocational Training</option>
+                                        <option value="Bachelor of Arts (BA)">Bachelor of Arts (BA)</option>
+                                        <option value="Bachelor of Science (BSc)">Bachelor of Science (BSc)</option>
+                                        <option value="Bachelor of Commerce (BCom)">Bachelor of Commerce (BCom)</option>
+                                        <option value="Bachelor of Computer Applications (BCA)">Bachelor of Computer Applications (BCA)</option>
+                                        <option value="Bachelor of Business Administration (BBA)">Bachelor of Business Administration (BBA)</option>
+                                        <option value="Bachelor of Technology (BTech)">Bachelor of Technology (BTech)</option>
+                                        <option value="Bachelor of Engineering (BE)">Bachelor of Engineering (BE)</option>
+                                        <option value="Bachelor of Education (BEd)">Bachelor of Education (BEd)</option>
+                                        <option value="Bachelor of Fine Arts (BFA)">Bachelor of Fine Arts (BFA)</option>
+                                        <option value="Bachelor of Architecture (BArch)">Bachelor of Architecture (BArch)</option>
+                                        <option value="Bachelor of Design (BDes)">Bachelor of Design (BDes)</option>
+                                        <option value="Bachelor of Social Work (BSW)">Bachelor of Social Work (BSW)</option>
+                                        <option value="Bachelor of Law (LLB)">Bachelor of Law (LLB)</option>
+                                        <option value="Bachelor of Pharmacy (BPharma)">Bachelor of Pharmacy (BPharma)</option>
+                                        <option value="Bachelor of Ayurvedic Medicine (BAMS)">Bachelor of Ayurvedic Medicine (BAMS)</option>
+                                        <option value="Bachelor of Homeopathic Medicine (BHMS)">Bachelor of Homeopathic Medicine (BHMS)</option>
+                                        <option value="Bachelor of Unani Medicine (BUMS)">Bachelor of Unani Medicine (BUMS)</option>
+                                        <option value="Bachelor of Dental Surgery (BDS)">Bachelor of Dental Surgery (BDS)</option>
+                                        <option value="Bachelor of Medicine and Bachelor of Surgery (MBBS)">Bachelor of Medicine and Bachelor of Surgery (MBBS)</option>
+                                        <option value="Bachelor of Nursing">Bachelor of Nursing</option>
+                                        <option value="Bachelor of Physiotherapy (BPT)">Bachelor of Physiotherapy (BPT)</option>
+                                        <option value="Bachelor of Hotel Management (BHM)">Bachelor of Hotel Management (BHM)</option>
+                                        <option value="Bachelor of Tourism Management">Bachelor of Tourism Management</option>
+                                        <option value="Bachelor of Journalism and Mass Communication (BJMC)">Bachelor of Journalism and Mass Communication (BJMC)</option>
+                                        <option value="Master of Arts (MA)">Master of Arts (MA)</option>
+                                        <option value="Master of Science (MSc)">Master of Science (MSc)</option>
+                                        <option value="Master of Commerce (MCom)">Master of Commerce (MCom)</option>
+                                        <option value="Master of Computer Applications (MCA)">Master of Computer Applications (MCA)</option>
+                                        <option value="Master of Business Administration (MBA)">Master of Business Administration (MBA)</option>
+                                        <option value="Master of Technology (MTech)">Master of Technology (MTech)</option>
+                                        <option value="Master of Engineering (ME)">Master of Engineering (ME)</option>
+                                        <option value="Master of Education (MEd)">Master of Education (MEd)</option>
+                                        <option value="Master of Fine Arts (MFA)">Master of Fine Arts (MFA)</option>
+                                        <option value="Master of Social Work (MSW)">Master of Social Work (MSW)</option>
+                                        <option value="Master of Law (LLM)">Master of Law (LLM)</option>
+                                        <option value="Master of Pharmacy (MPharma)">Master of Pharmacy (MPharma)</option>
+                                        <option value="Master of Public Health (MPH)">Master of Public Health (MPH)</option>
+                                        <option value="Master of Design (MDes)">Master of Design (MDes)</option>
+                                        <option value="Master of Architecture (MArch)">Master of Architecture (MArch)</option>
+                                        <option value="Master of Philosophy (MPhil)">Master of Philosophy (MPhil)</option>
+                                        <option value="Doctor of Philosophy (PhD)">Doctor of Philosophy (PhD)</option>
+                                        <option value="Doctor of Medicine (MD)">Doctor of Medicine (MD)</option>
+                                        <option value="Master of Surgery (MS)">Master of Surgery (MS)</option>
+                                        <option value="Chartered Accountant (CA)">Chartered Accountant (CA)</option>
+                                        <option value="Company Secretary (CS)">Company Secretary (CS)</option>
+                                        <option value="Cost and Management Accountant (CMA)">Cost and Management Accountant (CMA)</option>
+                                        <option value="Certified Financial Planner (CFP)">Certified Financial Planner (CFP)</option>
+                                        <option value="Certified Management Accountant">Certified Management Accountant</option>
+                                        <option value="Diploma in Computer Applications (DCA)">Diploma in Computer Applications (DCA)</option>
+                                        <option value="Diploma in Graphic Designing">Diploma in Graphic Designing</option>
+                                        <option value="Diploma in Animation">Diploma in Animation</option>
+                                        <option value="Diploma in Fashion Designing">Diploma in Fashion Designing</option>
+                                        <option value="Diploma in Interior Designing">Diploma in Interior Designing</option>
+                                        <option value="Diploma in Hotel Management">Diploma in Hotel Management</option>
+                                        <option value="Diploma in Nursing">Diploma in Nursing</option>
+                                        <option value="Diploma in Pharmacy">Diploma in Pharmacy</option>
+                                        <option value="Diploma in Mechanical Engineering">Diploma in Mechanical Engineering</option>
+                                        <option value="Diploma in Civil Engineering">Diploma in Civil Engineering</option>
+                                        <option value="Diploma in Electrical Engineering">Diploma in Electrical Engineering</option>
+                                        <option value="Diploma in Electronics Engineering">Diploma in Electronics Engineering</option>
+                                        <option value="Diploma in Chemical Engineering">Diploma in Chemical Engineering</option>
+                                        <option value="Diploma in Automobile Engineering">Diploma in Automobile Engineering</option>
+                                        <option value="Diploma in Mining Engineering">Diploma in Mining Engineering</option>
+                                        <option value="ITI Electrician">ITI Electrician</option>
+                                        <option value="ITI Fitter">ITI Fitter</option>
+                                        <option value="ITI Turner">ITI Turner</option>
+                                        <option value="ITI Welder">ITI Welder</option>
+                                        <option value="ITI Plumber">ITI Plumber</option>
+                                        <option value="ITI Mechanic">ITI Mechanic</option>
+                                        <option value="ITI Carpenter">ITI Carpenter</option>
+                                        <option value="ITI Draughtsman">ITI Draughtsman</option>
+                                        <option value="ITI Machinist">ITI Machinist</option>
+                                        <option value="Certificate in Digital Marketing">Certificate in Digital Marketing</option>
+                                        <option value="Certificate in Data Science">Certificate in Data Science</option>
+                                        <option value="Certificate in Artificial Intelligence">Certificate in Artificial Intelligence</option>
+                                        <option value="Certificate in Cloud Computing">Certificate in Cloud Computing</option>
+                                        <option value="Certificate in Cyber Security">Certificate in Cyber Security</option>
+                                        <option value="Certificate in Programming">Certificate in Programming</option>
+                                        <option value="Certificate in Web Development">Certificate in Web Development</option>
+                                        <option value="Certificate in Mobile App Development">Certificate in Mobile App Development</option>
+                                        <option value="Certificate in Game Development">Certificate in Game Development</option>
+                                        <option value="Certificate in Machine Learning">Certificate in Machine Learning</option>
+                                        <option value="Certificate in Blockchain">Certificate in Blockchain</option>
+                                        <option value="Certificate in Business Analytics">Certificate in Business Analytics</option>
+                                        <option value="Certificate in Photography">Certificate in Photography</option>
+                                        <option value="Certificate in Event Management">Certificate in Event Management</option>
+                                        <option value="Certificate in Foreign Language">Certificate in Foreign Language</option>
+                                        <option value="Certificate in Yoga">Certificate in Yoga</option>
+                                        <option value="Certificate in Music">Certificate in Music</option>
+                                        <option value="Certificate in Dance">Certificate in Dance</option>
+                                        <option value="Certificate in Acting">Certificate in Acting</option>
+                                        <option value="Certificate in Journalism">Certificate in Journalism</option>
+                                        <option value="Certificate in Travel & Tourism">Certificate in Travel & Tourism</option>
+                                    </select>
                                     <label for="education" data-translate="education">Education</label>
                                     <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" data-translate="education">
-                                        Please enter your education details
+                                        Please select your education
                                     </div>
                                 </div>
                             </div>
@@ -532,6 +852,15 @@ function toggleUserFields() {
 
 // Initialize form fields based on default selection
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Select2 for work profession dropdown
+    $('.select2').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'Select or search for a profession',
+        allowClear: true,
+        dropdownAutoWidth: true
+    });
+    
     // Set max date for date of birth (18 years ago)
     const today = new Date();
     const maxDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());

@@ -4,14 +4,11 @@
 
 {% block admin_content %}
 <div class="users-grid-container">
-    <div class="users-header mb-4">
-        <h4 class="users-title">{{ _('Users') }} <span class="text-muted">({{ users|length }})</span></h4>
-        <div class="users-search">
-            <div class="input-group">
-                <span class="input-group-text"><i class="fas fa-search"></i></span>
-                <input type="text" id="userSearch" class="form-control" placeholder="{{ _('Search users...') }}">
-            </div>
-        </div>
+    <div class="users-header mb-4 d-flex justify-content-between align-items-center">
+        <h4 class="users-title m-0">{{ _('Users') }} <span class="text-muted">({{ users|length }})</span></h4>
+        <a href="{{ url_for('export_users') }}" class="btn btn-success" id="exportUsersBtn">
+            <i class="fas fa-file-excel me-2"></i> Export to Excel
+        </a>
     </div>
 
     <div class="users-grid">
@@ -23,7 +20,14 @@
                     <span class="status-indicator status-{{ user.availability }}"></span>
                 </div>
                 <div class="user-info">
-                    <h5 class="user-name">{{ user.full_name }}</h5>
+                    <div class="d-flex align-items-center">
+                        <h5 class="user-name mb-0">{{ user.full_name }}</h5>
+                        {% if user.verified %}
+                        <span class="badge bg-primary ms-2" data-bs-toggle="tooltip" title="Verified User">
+                            <i class="fas fa-check-circle"></i> Verified
+                        </span>
+                        {% endif %}
+                    </div>
                     <p class="user-email">{{ user.email }}</p>
                 </div>
             </div>
@@ -42,6 +46,12 @@
                         <i class="fas fa-phone"></i>
                         <span>{{ user.phone or _('Not set') }}</span>
                     </div>
+                    <div class="stat">
+                        <i class="fas fa-calendar-plus"></i>
+                        <span title="{{ user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else 'N/A' }}">
+                            {{ user.created_at.strftime('%b %d, %Y') if user.created_at else 'N/A' }}
+                        </span>
+                    </div>
                 </div>
             </div>
             <div class="user-card-footer">
@@ -58,6 +68,11 @@
                     <button class="btn btn-danger btn-sm" onclick="deleteUser('{{ user.id }}', '{{ user.full_name }}')" title="{{ _('Delete User') }}">
                         <i class="fas fa-trash"></i>
                     </button>
+                    <form action="{{ url_for('admin_toggle_verify', user_id=user.id) }}" method="POST" class="d-inline">
+                        <button type="submit" class="btn btn-{{ 'success' if not user.verified else 'secondary' }} btn-sm" title="{{ 'Verify User' if not user.verified else 'Unverify User' }}">
+                            <i class="fas fa-{{ 'check-circle' if not user.verified else 'times-circle' }}"></i>
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -65,9 +80,66 @@
     </div>
 </div>
 
+{% block extra_css %}
+<style>
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.25em 0.5em;
+    }
+    .btn-verify {
+        min-width: 32px;
+    }
+</style>
+{% endblock %}
+
 {% block extra_js %}
 <script>
 $(document).ready(function() {
+    // Handle export button click
+    $('#exportUsersBtn').on('click', function(e) {
+        const $btn = $(this);
+        const originalText = $btn.html();
+        
+        // Show loading state
+        $btn.prop('disabled', true);
+        $btn.html('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Exporting...');
+        
+        // Create a hidden iframe for the download
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        
+        // Set a timeout to re-enable the button in case of failure
+        const timeout = setTimeout(function() {
+            $btn.prop('disabled', false).html(originalText);
+            document.body.removeChild(iframe);
+            
+            // Show error toast if still on the page after 30 seconds
+            if (document.body.contains($btn[0])) {
+                const toast = new bootstrap.Toast(document.getElementById('exportErrorToast'));
+                toast.show();
+            }
+        }, 30000);
+        
+        // Handle load event to clean up
+        iframe.onload = function() {
+            clearTimeout(timeout);
+            $btn.prop('disabled', false).html(originalText);
+            
+            // Remove the iframe after a short delay
+            setTimeout(function() {
+                if (document.body.contains(iframe)) {
+                    document.body.removeChild(iframe);
+                }
+            }, 1000);
+        };
+        
+        // Set the iframe source to trigger the download
+        iframe.src = $btn.attr('href');
+        
+        // Prevent default link behavior
+        e.preventDefault();
+    });
     // Search functionality
     $('#userSearch').on('keyup', function() {
         const value = $(this).val().toLowerCase();
@@ -134,4 +206,19 @@ function deleteUser(userId, userName) {
 }
 </script>
 {% endblock %}
+
+<!-- Error Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="exportErrorToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header bg-danger text-white">
+            <strong class="me-auto">Error</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            There was an error exporting the user data. Please try again.
+        </div>
+    </div>
+</div>
+
 {% endblock %}

@@ -1,13 +1,27 @@
 {% extends "base.html" %}
 
-{% block content %}
+{% block head %}
 <style>
+    /* Hide header and navbar on business OTP verification page */
+    .navbar, .site-title, .footer {
+        display: none !important;
+    }
+    /* Ensure content takes full height */
+    html, body {
+        height: 100%;
+    }
+    body {
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+        margin: 0;
+        padding: 0;
+    }
     .otp-container {
-        min-height: 100vh;
+        flex: 1;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
         padding: 20px;
         font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     }

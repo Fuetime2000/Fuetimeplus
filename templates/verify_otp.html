@@ -1,14 +1,31 @@
 {% extends "base.html" %}
 
-{% block content %}
+{% block head %}
 <style>
+    /* Hide header and navbar on OTP verification page */
+    .navbar, .site-title, .footer {
+        display: none !important;
+    }
+    /* Ensure content takes full height */
+    html, body {
+        height: 100%;
+    }
+    body {
+        display: flex;
+        flex-direction: column;
+        background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+        margin: 0;
+        padding: 0;
+    }
     .otp-container {
-        min-height: 100vh;
+        flex: 1;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
         padding: 20px;
+    }
+    .otp-container {
+        width: 100%;
         font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     }
 
@@ -316,8 +333,8 @@
                 {% endif %}
             {% endwith %}
 
-            <form method="POST" action="{{ url_for('verify_otp') }}" id="otpForm" onsubmit="return submitForm(event)">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <form id="otpForm" method="POST" action="{{ url_for('verify_otp') }}" onsubmit="return submitForm(event)">
+                <input type="hidden" name="csrf_token" id="csrfToken" value="{{ csrf_token() }}">
                 <input type="hidden" name="otp" id="otpFinal">
                 
                 <div class="otp-input-group">
@@ -350,16 +367,113 @@
 function submitForm(e) {
     e.preventDefault();
     const inputs = document.querySelectorAll('.otp-input');
-    const otp = Array.from(inputs).map(input => input.value).join('');
+    e.preventDefault();
     
-    if (otp.length === 6 && /^\d+$/.test(otp)) {
-        document.getElementById('otpFinal').value = otp;
-        document.getElementById('otpForm').submit();
-        return true;
-    } else {
-        showToast('Please enter a valid 6-digit OTP', 'error');
+    const otp = Array.from(document.querySelectorAll('.otp-input'))
+        .map(input => input.value)
+        .join('');
+    
+    if (otp.length !== 6 || !/^\d+$/.test(otp)) {
+        showToast('Please enter a valid 6-digit OTP', 'danger');
         return false;
     }
+    
+    const form = document.getElementById('otpForm');
+    const formData = new FormData();
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    
+    formData.append('otp', otp);
+    formData.append('csrf_token', csrfToken);
+    
+    const submitBtn = document.getElementById('submitBtn');
+    const spinner = document.getElementById('spinner');
+    const buttonText = document.getElementById('buttonText');
+    
+    // Show loading state
+    submitBtn.disabled = true;
+    spinner.classList.remove('d-none');
+    buttonText.textContent = 'Verifying...';
+    
+    // Check if this is a Flutter app request
+    const urlParams = new URLSearchParams(window.location.search);
+    const isFlutter = urlParams.get('source') === 'flutter';
+    
+    // Add source=flutter to form data if this is a Flutter request
+    if (isFlutter) {
+        formData.append('source', 'flutter');
+    }
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': isFlutter ? 'application/json' : 'text/html'
+        }
+    })
+    .then(response => {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json().then(handleJsonResponse);
+        } else {
+            return response.text().then(handleHtmlResponse);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('An error occurred. Please try again.', 'danger');
+        resetFormState();
+    });
+    
+    function handleJsonResponse(data) {
+        console.log('JSON Response:', data);
+        if (data.success) {
+            // If we have a redirect URL, try to redirect
+            if (data.redirect_url) {
+                // Try to open the app
+                window.location.href = data.redirect_url;
+                
+                // Fallback in case the app doesn't open
+                setTimeout(() => {
+                    // If we're still here, show a message
+                    document.body.innerHTML = `
+                        <div class="container mt-5">
+                            <div class="alert alert-info">
+                                <h4 class="alert-heading">Redirecting to App</h4>
+                                <p>If you are not automatically redirected, please <a href="${data.redirect_url}">click here</a> to open in the app.</p>
+                                <hr>
+                                <p class="mb-0">Or <a href="/">return to home</a>.</p>
+                            </div>
+                        </div>
+                    `;
+                }, 1000);
+            } else {
+                // No redirect URL, just show success message
+                showToast(data.message || 'Verification successful!', 'success');
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1500);
+            }
+        } else {
+            showToast(data.message || 'Verification failed', 'danger');
+            resetFormState();
+        }
+    }
+    
+    function handleHtmlResponse(html) {
+        // If we get HTML back (like our redirect page), replace the current document
+        document.open();
+        document.write(html);
+        document.close();
+    }
+    
+    function resetFormState() {
+        submitBtn.disabled = false;
+        spinner.classList.add('d-none');
+        buttonText.textContent = 'Verify OTP';
+    }
+    
+    return false; // Prevent form submission
 }
 
 document.addEventListener('DOMContentLoaded', function() {

@@ -11,7 +11,10 @@ import smtplib
 from itertools import groupby
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from flask import Flask, request, render_template, redirect, url_for, flash, session, jsonify, make_response, send_from_directory, Response, g, send_file, current_app
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory, abort, Response, make_response, send_file, g
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
+import pandas as pd
+from io import BytesIO
 from werkzeug.utils import secure_filename
 from blueprints.main import bp as main_bp
 from flask import jsonify, request
@@ -25,9 +28,6 @@ from flask_socketio import emit, join_room, leave_room
 from flask_babel import gettext as _
 
 
-# Import API blueprint
-from blueprints.api import api_bp
-
 # Import models
 from models.user import User
 from models.transaction import Transaction
@@ -38,6 +38,9 @@ import events
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_pyfile('config.py')
+
+# Import and register API blueprint after app is created
+from blueprints.api import api_bp
 
 # Configure CORS for API
 CORS(app, resources={
@@ -54,8 +57,16 @@ from extensions import db
 from flask_migrate import Migrate
 migrate = Migrate(app, db)
 
-# Register API blueprint
-app.register_blueprint(api_bp, url_prefix='/api')
+# Register API blueprints with CSRF protection disabled
+app.register_blueprint(api_bp, url_prefix='/api/v1')
+
+# Register search API blueprint
+from blueprints.search_api import search_bp
+app.register_blueprint(search_bp, url_prefix='')
+
+# Completely disable CSRF protection for the entire application
+app.config['WTF_CSRF_ENABLED'] = False
+app.config['WTF_CSRF_CHECK_DEFAULT'] = False
 
 # Import SocketIO
 try:
@@ -173,9 +184,15 @@ def serve_profile_pic(filename):
             return send_from_directory('static', 'img/default-avatar.png')
         
         # Check if file exists in profile_pics folder
-        profile_pics_path = os.path.join(current_app.config['PROFILE_PICS_FOLDER'], filename)
+        profile_pics_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'profile_pics', filename)
         if os.path.isfile(profile_pics_path):
-            return send_from_directory(current_app.config['PROFILE_PICS_FOLDER'], filename)
+            return send_from_directory(os.path.join(current_app.config['UPLOAD_FOLDER'], 'profile_pics'), filename)
+            
+        # Check the old profile_pics folder location for backward compatibility
+        if 'PROFILE_PICS_FOLDER' in current_app.config:
+            old_profile_pics_path = os.path.join(current_app.config['PROFILE_PICS_FOLDER'], filename)
+            if os.path.isfile(old_profile_pics_path):
+                return send_from_directory(current_app.config['PROFILE_PICS_FOLDER'], filename)
             
         # If not found in profile_pics, check the root uploads folder
         uploads_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
@@ -826,17 +843,24 @@ def admin_resolve_alert(alert_id):
 
 
 
+# Import configuration
+from config import Config
+
 # Razorpay configuration
-RAZORPAY_KEY_ID = 'rzp_live_NJ0w2ONEt4sOwV'
-RAZORPAY_KEY_SECRET = 't8s0UF9M35FPHMCJob2G9mwH'
+RAZORPAY_KEY_ID = Config.RAZORPAY_KEY_ID
+RAZORPAY_KEY_SECRET = Config.RAZORPAY_KEY_SECRET
 
 # Import required modules
 import razorpay
 import requests
 from requests.adapters import HTTPAdapter
 
+# Set Razorpay configuration in the Flask app config
+app.config['RAZORPAY_KEY_ID'] = RAZORPAY_KEY_ID
+app.config['RAZORPAY_KEY_SECRET'] = RAZORPAY_KEY_SECRET
+
 # Initialize Razorpay client
-razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+razorpay_client = razorpay.Client(auth=(app.config['RAZORPAY_KEY_ID'], app.config['RAZORPAY_KEY_SECRET']))
 from urllib3.util.retry import Retry
 import ssl
 from functools import partial
@@ -868,6 +892,10 @@ def create_razorpay_client():
     print("\n=== Creating Razorpay client with custom session ===")
     print(f"Using Key ID: {RAZORPAY_KEY_ID}")
     print(f"Key Secret: {'*' * len(RAZORPAY_KEY_SECRET) if RAZORPAY_KEY_SECRET else 'Not set'}")
+    
+    if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+        print("ERROR: Razorpay credentials not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in your .env file.")
+        return None
     
     try:
         # Create a custom session with retry logic
@@ -1086,36 +1114,45 @@ The Fuetime Team
 @app.route('/wallet', methods=['GET', 'POST'])
 @login_required
 def wallet():
+    # Initialize transactions as an empty list
+    transactions = []
+    
     try:
-        # Initialize transactions as an empty list in case of any errors
-        transactions = []
+        # Get user's wallet transactions in descending order (newest first)
+        transactions = Transaction.query.filter_by(
+            user_id=current_user.id
+        ).order_by(Transaction.created_at.desc()).limit(50).all()
         
-        try:
-            # Get user's wallet transactions in descending order (newest first)
-            transactions = Transaction.query.filter_by(
-                user_id=current_user.id
-            ).order_by(Transaction.created_at.desc()).limit(50).all()
-            
-            # Log successful transaction retrieval
-            app.logger.info(f'Successfully retrieved {len(transactions)} transactions for user {current_user.id}')
-            
-        except Exception as db_error:
-            app.logger.error(f'Error fetching transactions: {str(db_error)}')
-            flash('Error loading transaction history. Please try again.', 'warning')
+        # Log successful transaction retrieval
+        app.logger.info(f'Successfully retrieved {len(transactions)} transactions for user {current_user.id}')
         
-        # Ensure we have a valid wallet balance
-        wallet_balance = getattr(current_user, 'wallet_balance', 0.0)
-        
-        return render_template('wallet.html', 
-                           transactions=transactions,
-                           wallet_balance=wallet_balance)
-    except Exception as e:
-        app.logger.error(f'Error in wallet route: {str(e)}')
-        flash('An error occurred while accessing your wallet. Please try again.', 'error')
-        return render_template('wallet.html', 
-                           transactions=[],
-                           wallet_balance=getattr(current_user, 'wallet_balance', 0.0))
-        return redirect(url_for('account'))
+    except Exception as db_error:
+        app.logger.error(f'Error fetching transactions: {str(db_error)}')
+        if request.accept_mimetypes.accept_json:
+            return jsonify({'error': 'Error loading transaction history'}), 500
+        flash('Error loading transaction history. Please try again.', 'warning')
+    
+    # Get wallet balance, default to 0.0 if not set
+    wallet_balance = float(getattr(current_user, 'wallet_balance', 0.0))
+    
+    # Handle JSON requests (for AJAX/fetch calls)
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return jsonify({
+            'balance': wallet_balance,
+            'transactions': [{
+                'id': txn.id,
+                'amount': float(txn.amount) if txn.amount else 0.0,
+                'description': txn.description or 'Transaction',
+                'created_at': txn.created_at.isoformat() if txn.created_at else None,
+                'transaction_type': txn.transaction_type
+            } for txn in transactions]
+        })
+    
+    # Handle regular web requests
+    return render_template('wallet.html', 
+                         transactions=transactions,
+                         wallet_balance=wallet_balance,
+                         current_user=current_user)
 
 @app.route('/create-recharge-order', methods=['POST'])
 @login_required
@@ -3200,9 +3237,21 @@ def delete_account():
         flash('An error occurred while deleting your account. Please try again later.', 'error')
         return redirect(url_for('account'))
 
-@app.errorhandler(404)
-def not_found_error(error):
-    return render_template('404.html', average_rating=0.0, total_reviews=0, portfolio=None, reviews=[]), 404
+@app.route('/admin/user/<int:user_id>/toggle_verify', methods=['POST'])
+@login_required
+@admin_required
+def admin_toggle_verify(user_id):
+    user = User.query.get_or_404(user_id)
+    user.verified = not user.verified
+    db.session.commit()
+    
+    action = 'verified' if user.verified else 'unverified'
+    app.logger.info(f'Admin {current_user.email} {action} user {user.email} (ID: {user.id})')
+    
+    flash(f'User {user.username} has been {action}.', 'success')
+    return redirect(request.referrer or url_for('admin_users'))
+
+# Admin delete user route moved to the bottom of the file to avoid duplication
 
 @app.errorhandler(500)
 def internal_error(error):
@@ -3392,127 +3441,76 @@ def admin_users():
     users = User.query.all()
     return render_template('admin/users.html', users=users)
 
-@app.route('/admin/api/users/<int:user_id>', methods=['DELETE'])
+@app.route('/admin/export-users')
 @login_required
 @admin_required
-def admin_delete_user(user_id):
-    print(f"\n{'='*80}")
-    print(f"Starting deletion of user {user_id}")
-    print(f"Current user: {current_user.id} ({current_user.email})")
+def export_users():
+    # Get all users
+    users = User.query.all()
     
-    try:
-        # Prevent deleting own account
-        if user_id == current_user.id:
-            return jsonify({
-                'success': False,
-                'message': 'You cannot delete your own account while logged in.'
-            }), 400
-            
-        # Use the existing Flask-SQLAlchemy session
-        user = User.query.get(user_id)
-        if not user:
-            return jsonify({
-                'success': False,
-                'message': f'User with ID {user_id} not found.'
-            }), 404
-            
-        print(f"Found user: {user.id} ({user.email})")
-        
-        # Start with a clean session
-        db.session.rollback()
-        
-        try:
-            # Try to delete the user directly first
-            print("Attempting to delete user...")
-            db.session.delete(user)
-            db.session.commit()
-            print("User deleted successfully")
-            return jsonify({
-                'success': True,
-                'message': 'User deleted successfully'
-            })
-            
-        except Exception as e:
-            db.session.rollback()
-            print(f"Direct deletion failed: {str(e)}")
-            print("Will try to delete related records first...")
-            
-            # If direct deletion fails, try to identify which related records are causing issues
-            try:
-                print("\nChecking for related records...")
-                from models import (
-                    Message, ContactRequest, Review, HelpRequest, 
-                    UserInteraction, Transaction, UserBehavior, 
-                    FraudAlert, Call, PortfolioRating, Portfolio, 
-                    PortfolioProject, ProjectTechnology, PortfolioSkill,
-                    Donation
-                )
-                
-                # Print counts of related records
-                print(f"Messages: {Message.query.filter((Message.sender_id == user_id) | (Message.receiver_id == user_id)).count()}")
-                print(f"Contact Requests: {ContactRequest.query.filter((ContactRequest.requester_id == user_id) | (ContactRequest.requested_id == user_id)).count()}")
-                print(f"Reviews: {Review.query.filter((Review.reviewer_id == user_id) | (Review.worker_id == user_id)).count()}")
-                print(f"Help Requests: {HelpRequest.query.filter_by(user_id=user_id).count()}")
-                print(f"User Interactions: {UserInteraction.query.filter((UserInteraction.viewer_id == user_id) | (UserInteraction.viewed_id == user_id)).count()}")
-                print(f"Transactions: {Transaction.query.filter((Transaction.sender_id == user_id) | (Transaction.recipient_id == user_id)).count()}")
-                print(f"User Behaviors: {UserBehavior.query.filter_by(user_id=user_id).count()}")
-                print(f"Fraud Alerts: {FraudAlert.query.filter_by(user_id=user_id).count()}")
-                print(f"Calls: {Call.query.filter((Call.caller_id == user_id) | (Call.callee_id == user_id)).count()}")
-                print(f"Portfolio Ratings: {PortfolioRating.query.filter_by(user_id=user_id).count()}")
-                print(f"Portfolios: {Portfolio.query.filter_by(user_id=user_id).count()}")
-                print(f"Donations: {Donation.query.filter((Donation.donor_id == user_id) | (Donation.recipient_id == user_id)).count()}")
-                
-                # Now try to delete the user again with cascade
-                print("\nTrying to delete user with cascade...")
-                db.session.delete(user)
-                db.session.commit()
-                print("User deleted successfully with cascade")
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'User deleted successfully with cascade'
-                })
-                
-            except Exception as e:
-                db.session.rollback()
-                import traceback
-                error_trace = traceback.format_exc()
-                print("\n" + "="*80)
-                print("FULL ERROR DETAILS:")
-                print(error_trace)
-                print("="*80 + "\n")
-                
-                # Get database inspector to check tables
-                inspector = db.inspect(db.engine)
-                print("\nDatabase tables:", inspector.get_table_names())
-                
-                return jsonify({
-                    'success': False,
-                    'message': 'Failed to delete user',
-                    'error': str(e),
-                    'error_type': str(type(e).__name__),
-                    'tables': inspector.get_table_names()
-                }), 500
-                
-    except Exception as e:
-        import traceback
-        error_trace = traceback.format_exc()
-        print("\n" + "="*80)
-        print("UNEXPECTED ERROR:")
-        print(error_trace)
-        print("="*80 + "\n")
-        
-        return jsonify({
-            'success': False,
-            'message': 'An unexpected error occurred',
-            'error': str(e),
-            'error_type': str(type(e).__name__)
-        }), 500
+    # Create a list of user data
+    data = []
+    for user in users:
+        data.append({
+            'Full Name': user.full_name,
+            'Email': user.email,
+            'Phone': user.phone or 'N/A',
+            'User Type': user.user_type.capitalize(),
+            'Registration Date': user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else 'N/A',
+            'Last Active': user.last_active.strftime('%Y-%m-%d %H:%M:%S') if user.last_active else 'N/A',
+            'Status': 'Active' if user.active else 'Inactive',
+            'Email Verified': 'Yes' if user.email_verified else 'No',
+            'Phone Verified': 'Yes' if user.phone_verified else 'No'
+        })
     
-    finally:
-        print(f"\n{'='*80}")
-        print("Deletion process completed")
-        print(f"{'='*80}\n")
+    # Create a DataFrame
+    df = pd.DataFrame(data)
+    
+    # Create a BytesIO buffer
+    output = BytesIO()
+    
+    # Write the DataFrame to the buffer as an Excel file
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Users')
+        
+        # Get the xlsxwriter workbook and worksheet objects
+        workbook = writer.book
+        worksheet = writer.sheets['Users']
+        
+        # Add a header format
+        header_format = workbook.add_format({
+            'bold': True,
+            'text_wrap': True,
+            'valign': 'top',
+            'fg_color': '#4472C4',
+            'font_color': 'white',
+            'border': 1
+        })
+        
+        # Write the column headers with the defined format
+        for col_num, value in enumerate(df.columns.values):
+            worksheet.write(0, col_num, value, header_format)
+        
+        # Set column widths
+        for i, col in enumerate(df.columns):
+            # Find the maximum length of the column
+            max_length = max(
+                df[col].astype(str).apply(len).max(),
+                len(str(col))
+            ) + 2  # Add a little extra space
+            
+            # Set the column width
+            worksheet.set_column(i, i, min(max_length, 30))
+    
+    # Prepare the response
+    output.seek(0)
+    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f'users_export_{timestamp}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 
 @app.route('/admin/user/<username>')
 @app.route('/admin/user/<username>/risk-profile')
@@ -3972,13 +3970,34 @@ def resend_otp():
 @app.route('/verify-otp', methods=['GET', 'POST'])
 def verify_otp():
     """Handle OTP verification for worker registration"""
+    print(f"\n[DEBUG] ====== verify_otp called ======")
+    print(f"[DEBUG] Method: {request.method}")
+    print(f"[DEBUG] Headers: {dict(request.headers)}")
+    print(f"[DEBUG] Form data: {request.form}")
+    print(f"[DEBUG] JSON data: {request.get_json(silent=True)}")
+    print(f"[DEBUG] Request args: {request.args}")
+    print(f"[DEBUG] Session data: {dict(session)}")
+    print(f"[DEBUG] Request content type: {request.content_type}")
+    
     if 'pending_verification_id' not in session:
-        flash('No pending verification. Please register first.', 'error')
+        error_msg = 'No pending verification. Please register first.'
+        print(f"[ERROR] {error_msg}")
+        flash(error_msg, 'error')
         return redirect(url_for('register'))
 
     if request.method == 'POST':
-        otp_attempt = request.form.get('otp')
+        # Check if this is an AJAX request from Flutter app
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
+        print(f"[DEBUG] is_ajax: {is_ajax}")
+        
+        otp_attempt = request.form.get('otp') if not is_ajax else request.json.get('otp')
+        
         if not otp_attempt:
+            if is_ajax:
+                return jsonify({
+                    'success': False,
+                    'message': 'Please enter the verification code.'
+                }), 400
             flash('Please enter the verification code.', 'error')
             return redirect(url_for('verify_otp'))
 
@@ -3988,6 +4007,11 @@ def verify_otp():
         
         if not user:
             session.pop('pending_verification_id', None)
+            if is_ajax:
+                return jsonify({
+                    'success': False,
+                    'message': 'User not found. Please try registering again.'
+                }), 400
             flash('User not found. Please try registering again.', 'error')
             return redirect(url_for('register'))
 
@@ -3996,10 +4020,20 @@ def verify_otp():
             db.session.delete(user)
             db.session.commit()
             session.pop('pending_verification_id', None)
+            if is_ajax:
+                return jsonify({
+                    'success': False,
+                    'message': 'Verification code has expired. Please try registering again.'
+                }), 400
             flash('Verification code has expired. Please try registering again.', 'error')
             return redirect(url_for('register'))
 
         if otp_attempt != user.email_otp:
+            if is_ajax:
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid verification code. Please try again.'
+                }), 400
             flash('Invalid verification code. Please try again.', 'error')
             return redirect(url_for('verify_otp'))
 
@@ -4010,31 +4044,96 @@ def verify_otp():
             user.authenticated = True
             user.email_otp = None  # Clear OTP after successful verification
 
+            # Generate auth token for Flutter app
+            auth_token = user.get_auth_token()
+
             # Save changes to database
             db.session.commit()
-            print(f"User verified successfully: {user.email}")
+            print(f"[DEBUG] User verified successfully: {user.email}")
 
             # Clear verification data from session
             session.pop('pending_verification_id', None)
 
             # Log the user in
             login_user(user)
-            print(f"User logged in: {user.email}")
-
-            # Show success message
-            flash('Registration successful! Welcome to Fuetime!', 'success')
+            print(f"[DEBUG] User logged in: {user.email}")
+            
+            # Check if this is a Flutter app request
+            is_flutter_request = is_ajax or request.args.get('source') == 'flutter' or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            print(f"[DEBUG] is_flutter_request: {is_flutter_request}")
+            
+            if is_flutter_request:
+                # Create a simple HTML page with JavaScript to handle the redirect
+                # This is more reliable for deep linking
+                redirect_url = f'fuetimeapp://auth/user/callback?token={auth_token}'
+                print(f"[DEBUG] Sending redirect URL: {redirect_url}")
                 
-            # Redirect to main index for workers
+                response_html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Redirecting to App</title>
+                    <meta http-equiv="refresh" content="0;url={redirect_url}">
+                    <script>
+                        // Try to redirect immediately
+                        window.location.href = '{redirect_url}';
+                        
+                        // Fallback in case the app doesn't open
+                        setTimeout(function() {{
+                            // Redirect to a fallback URL or show a message
+                            document.body.innerHTML = (
+                                '<p>Redirecting to app... <a href="{redirect_url}">Click here</a> if not redirected automatically.</p>' +
+                                '<p>Or <a href="/">return to home</a>.</p>'
+                            );
+                        }}, 1000);
+                    </script>
+                </head>
+                <body>
+                    <p>Redirecting to app... Please wait...</p>
+                </body>
+                </html>
+                """
+                
+                response_data = {
+                    'success': True,
+                    'message': 'Registration successful!',
+                    'token': auth_token,
+                    'user': {
+                        'id': user.id,
+                        'email': user.email,
+                        'full_name': user.full_name,
+                        'phone': user.phone
+                    },
+                    'redirect_url': redirect_url
+                }
+                print(f"[DEBUG] Response data: {response_data}")
+                
+                # Return both JSON and HTML responses
+                if request.headers.get('Accept') == 'application/json':
+                    return jsonify(response_data)
+                else:
+                    # For form submissions, return the HTML page with redirect
+                    return response_html
+
+            # For web users
+            flash('Registration successful! Welcome to Fuetime!', 'success')
             return redirect(url_for('main.index'))
 
         except Exception as e:
             db.session.rollback()
-            print(f"Error creating user: {str(e)}")
-            flash('An error occurred during registration. Please try again.', 'error')
+            error_msg = f'An error occurred during registration. Please try again. Error: {str(e)}'
+            print(error_msg)
+            if is_ajax:
+                return jsonify({
+                    'success': False,
+                    'message': error_msg
+                }), 500
+            flash(error_msg, 'error')
             return redirect(url_for('register'))
 
     # For GET request, show OTP verification form
-    return render_template('verify_otp.html')
+    source = request.args.get('source', '')
+    return render_template('verify_otp.html', source=source)
 
 @app.route('/verify-business-otp', methods=['GET', 'POST'])
 def verify_business_otp():

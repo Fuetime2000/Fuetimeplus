@@ -4,6 +4,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 from flask import current_app
+from time import time
 
 class User(Base, UserMixin):
     __tablename__ = 'user'
@@ -53,19 +54,35 @@ class User(Base, UserMixin):
     email_notifications = db.Column(db.Boolean, default=True)
     message_notifications = db.Column(db.Boolean, default=True)
     review_notifications = db.Column(db.Boolean, default=True)
+    verified = db.Column(db.Boolean, default=False, nullable=False)
     
     # Relationships
-    portfolio = db.relationship('Portfolio', backref='user', uselist=False, lazy=True)
+    portfolio = db.relationship('Portfolio', back_populates='user', uselist=False, lazy=True, cascade='all, delete-orphan')
     
+    # Project relationships
+    projects = db.relationship('Project', 
+                             back_populates='user',
+                             lazy='dynamic',
+                             overlaps='portfolio_projects')
+    
+    # Portfolio projects relationship (from PortfolioProject model)
+    portfolio_projects = db.relationship('PortfolioProject',
+                                       back_populates='user',
+                                       lazy='dynamic',
+                                       overlaps='projects')
+    
+    # Review relationships
     reviews_received = db.relationship('models.review.Review',
         foreign_keys='models.review.Review.worker_id',
         back_populates='worker',
-        lazy='dynamic'
+        lazy='dynamic',
+        overlaps='reviews_worker'
     )
     reviews_given = db.relationship('models.review.Review',
         foreign_keys='models.review.Review.reviewer_id',
         back_populates='reviewer',
-        lazy='dynamic'
+        lazy='dynamic',
+        overlaps='reviews_reviewer'
     )
     
     def set_password(self, password):
@@ -103,6 +120,14 @@ class User(Base, UserMixin):
     def get_unread_messages_count(self):
         from models.message import Message
         return Message.query.filter_by(receiver_id=self.id, is_read=False).count()
+        
+    def get_auth_token(self, expires_in=3600):
+        """Generate a JWT token for API authentication"""
+        return jwt.encode(
+            {'user_id': self.id, 'exp': time() + expires_in},
+            current_app.config['SECRET_KEY'],
+            algorithm='HS256'
+        )
     
     def get_related_users(self, limit=6):
         """Find worker users with similar skills and location"""
