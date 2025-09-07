@@ -26,7 +26,7 @@ def chat(recipient_id):
         sender_id=recipient_id,
         receiver_id=current_user.id,
         is_read=False
-    ).update({'is_read': True, 'read_at': datetime.utcnow()})
+    ).update({'is_read': True})
     db.session.commit()
     
     # Get message history
