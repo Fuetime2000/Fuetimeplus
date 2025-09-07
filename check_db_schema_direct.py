@@ -1,28 +1,13 @@
-import os
 import sqlite3
-from app import app, db
+import os
 
-def check_database():
-    # Get the database path from the app config
-    db_uri = app.config['SQLALCHEMY_DATABASE_URI']
+def main():
+    db_path = 'fuetime.db'
     
-    # Extract the database path from the URI
-    # Format: 'sqlite:///path/to/database.db'
-    if db_uri.startswith('sqlite:///'):
-        db_path = db_uri.replace('sqlite:///', '')
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), db_path)
-    else:
-        print(f"Unexpected database URI format: {db_uri}")
-        return
-    
-    print(f"Checking database at: {db_path}")
-    
-    # Check if the database file exists
     if not os.path.exists(db_path):
-        print("❌ Database file does not exist.")
+        print(f"❌ Database file '{db_path}' does not exist.")
         return
     
-    # Connect to the database
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -35,16 +20,16 @@ def check_database():
             print("❌ No tables found in the database.")
             return
             
-        print("\nTables in database:")
+        print("Tables in database:")
         for table in tables:
             print(f"- {table[0]}")
         
-        # Check if user table exists
+        # Check user table
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user';")
         if not cursor.fetchone():
             print("\n❌ 'user' table not found in the database.")
             return
-        
+            
         # Get user table columns
         cursor.execute("PRAGMA table_info(user)")
         columns = cursor.fetchall()
@@ -61,10 +46,13 @@ def check_database():
         else:
             print("\n❌ The 'verified' column does NOT exist in the user table.")
         
-        # Check if there's any data in the user table
-        cursor.execute("SELECT COUNT(*) FROM user")
-        user_count = cursor.fetchone()[0]
-        print(f"\nNumber of users in the database: {user_count}")
+        # Check alembic version if table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='alembic_version';")
+        if cursor.fetchone():
+            cursor.execute("SELECT version_num FROM alembic_version LIMIT 1;")
+            version = cursor.fetchone()
+            if version:
+                print(f"\nAlembic version: {version[0]}")
         
     except sqlite3.Error as e:
         print(f"\n❌ SQLite error: {e}")
@@ -75,5 +63,4 @@ def check_database():
             conn.close()
 
 if __name__ == "__main__":
-    with app.app_context():
-        check_database()
+    main()
