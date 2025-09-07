@@ -48,13 +48,13 @@ class User(Base, UserMixin):
     authenticated = db.Column(db.Boolean, default=False)
     email_verified = db.Column(db.Boolean, default=False)
     phone_verified = db.Column(db.Boolean, default=False)
+    verified = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
     email_otp = db.Column(db.String(6))
     phone_otp = db.Column(db.String(6))
     otp_expiry = db.Column(db.DateTime)
     email_notifications = db.Column(db.Boolean, default=True)
     message_notifications = db.Column(db.Boolean, default=True)
     review_notifications = db.Column(db.Boolean, default=True)
-    verified = db.Column(db.Boolean, default=False, nullable=False)
     
     # Relationships
     portfolio = db.relationship('Portfolio', back_populates='user', uselist=False, lazy=True, cascade='all, delete-orphan')
