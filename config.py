@@ -11,7 +11,7 @@ class Config:
     APP_VERSION = '1.0.0'
     APP_DESCRIPTION = 'A platform connecting clients with skilled professionals'
     APP_AUTHOR = 'Fuetime Team'
-    APP_WEBSITE = 'https://fuetime.example.com'
+    APP_WEBSITE = 'https://fuetime.com'
     
     # Security
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-change-in-production'
