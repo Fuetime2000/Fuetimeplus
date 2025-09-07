@@ -2,8 +2,10 @@ import sqlite3
 
 def add_verified_column():
     try:
-        # Connect to the SQLite database
-        conn = sqlite3.connect('instance/fuetime.db')
+        # Connect to the SQLite database using absolute path
+        import os
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'fuetime.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         # Check if the column already exists
