@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify, current_app, url_for
 from flask_login import login_required, current_user
 from flask_socketio import emit, join_room, leave_room
 from datetime import datetime
@@ -24,16 +24,16 @@ def chat(recipient_id):
     # Mark messages as read
     Message.query.filter_by(
         sender_id=recipient_id,
-        recipient_id=current_user.id,
+        receiver_id=current_user.id,
         is_read=False
-    ).update({'is_read': True})
+    ).update({'is_read': True, 'read_at': datetime.utcnow()})
     db.session.commit()
     
     # Get message history
     messages = Message.query.filter(
-        ((Message.sender_id == current_user.id) & (Message.recipient_id == recipient_id)) |
-        ((Message.sender_id == recipient_id) & (Message.recipient_id == current_user.id))
-    ).order_by(Message.timestamp.asc()).all()
+        ((Message.sender_id == current_user.id) & (Message.receiver_id == recipient_id)) |
+        ((Message.sender_id == recipient_id) & (Message.receiver_id == current_user.id))
+    ).order_by(Message.created_at.asc()).all()
     
     return render_template('messages/chat.html', 
                          recipient=recipient, 
@@ -66,9 +66,9 @@ def register_socket_events():
         # Save message to database
         message = Message(
             sender_id=current_user.id,
-            recipient_id=recipient_id,
+            receiver_id=recipient_id,
             content=content,
-            timestamp=datetime.utcnow()
+            created_at=datetime.utcnow()
         )
         db.session.add(message)
         db.session.commit()
@@ -79,7 +79,7 @@ def register_socket_events():
             'sender_id': current_user.id,
             'recipient_id': recipient_id,
             'content': content,
-            'timestamp': message.timestamp.isoformat(),
+            'timestamp': message.created_at.isoformat(),
             'sender_name': current_user.name,
             'sender_avatar': current_user.profile_pic or url_for('static', filename='img/default-avatar.png')
         }, room=f'user_{recipient_id}')
@@ -90,7 +90,7 @@ def register_socket_events():
             'sender_id': current_user.id,
             'recipient_id': recipient_id,
             'content': content,
-            'timestamp': message.timestamp.isoformat(),
+            'timestamp': message.created_at.isoformat(),
             'sender_name': 'You',
             'sender_avatar': current_user.profile_pic or url_for('static', filename='img/default-avatar.png')
         }, room=f'user_{current_user.id}')
