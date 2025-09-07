@@ -93,19 +93,18 @@
     </div>
 
     <div class="col-xl-3 col-md-6">
-        <div class="card stat-card stat-card-warning h-100">
+        <div class="card stat-card stat-card-danger h-100">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="card-title">{{ _('Total Reviews') }}</div>
-                        <div class="stat-value">{{ total_reviews }}</div>
-                        <div class="stat-change">
-                            <i class="fas fa-arrow-up"></i>
-                            <span>15% {{ _('this month') }}</span>
-                        </div>
+                        <div class="card-title">{{ _('Pending Reports') }}</div>
+                        <div class="stat-value">{{ pending_reports }}</div>
+                        <a href="{{ url_for('admin.reported_users') }}" class="text-danger small">
+                            {{ _('View All Reports') }} <i class="fas fa-arrow-right ms-1"></i>
+                        </a>
                     </div>
                     <div class="stat-icon">
-                        <i class="fas fa-star"></i>
+                        <i class="fas fa-flag"></i>
                     </div>
                 </div>
             </div>

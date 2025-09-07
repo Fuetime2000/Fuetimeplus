@@ -11,7 +11,10 @@ import smtplib
 from itertools import groupby
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, send_from_directory, abort, Response, make_response, send_file, g
+from flask import (
+    Flask, render_template, request, redirect, url_for, flash, jsonify, session, 
+    send_from_directory, abort, Response, make_response, send_file, g, get_flashed_messages
+)
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 import pandas as pd
 from io import BytesIO
@@ -115,6 +118,12 @@ app.config['MAIL_PASSWORD'] = 'qrjz depb zcsz zcba'  # Your App Password
 app.config['MAIL_DEFAULT_SENDER'] = 'dipendra998405@gmail.com'  # Your Gmail address
 app.config['MAIL_DEBUG'] = True  # Enable debug output
 
+# Initialize Flask-Mail
+from flask_mail import Mail
+mail = Mail(app)
+
+# Import and register API blueprint after app is created
+
 # JWT configuration
 jwt = JWTManager(app)
 app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']
@@ -173,7 +182,8 @@ def configure_upload_folders():
 configure_upload_folders()
 
 # Route to serve profile pictures
-@app.route('/profile_pic/<filename>')
+@app.route('/static/uploads/<path:filename>')
+@app.route('/profile_pic/<path:filename>')
 def serve_profile_pic(filename):
     try:
         if not filename or filename == 'None':
@@ -184,22 +194,16 @@ def serve_profile_pic(filename):
             return send_from_directory('static', 'img/default-avatar.png')
         
         # Check if file exists in profile_pics folder
-        profile_pics_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'profile_pics', filename)
+        profile_pics_path = os.path.join(current_app.root_path, 'static', 'uploads', 'profile_pics', filename)
         if os.path.isfile(profile_pics_path):
-            return send_from_directory(os.path.join(current_app.config['UPLOAD_FOLDER'], 'profile_pics'), filename)
+            return send_from_directory(os.path.join(current_app.root_path, 'static', 'uploads', 'profile_pics'), filename)
             
         # Check the old profile_pics folder location for backward compatibility
-        if 'PROFILE_PICS_FOLDER' in current_app.config:
-            old_profile_pics_path = os.path.join(current_app.config['PROFILE_PICS_FOLDER'], filename)
-            if os.path.isfile(old_profile_pics_path):
-                return send_from_directory(current_app.config['PROFILE_PICS_FOLDER'], filename)
+        old_profile_pics_path = os.path.join(current_app.root_path, 'static', 'uploads', filename)
+        if os.path.isfile(old_profile_pics_path):
+            return send_from_directory(os.path.join(current_app.root_path, 'static', 'uploads'), filename)
             
-        # If not found in profile_pics, check the root uploads folder
-        uploads_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-        if os.path.isfile(uploads_path):
-            return send_from_directory(current_app.config['UPLOAD_FOLDER'], filename)
-            
-        # If not found anywhere, return default avatar
+        # If not found, return default avatar
         return send_from_directory('static', 'img/default-avatar.png')
         
     except Exception as e:
@@ -613,8 +617,13 @@ def health_check():
     return "OK", 200
 
 # Serve static files with optimized caching and compression
+# Exclude uploads directory which is handled by the API
 @app.route('/static/<path:filename>')
 def serve_static(filename):
+    # Don't handle uploads here - let the API route handle them
+    if filename.startswith('uploads/'):
+        abort(404)
+        
     response = send_from_directory(app.static_folder, filename)
     response.cache_control.max_age = 31536000  # 1 year
     response.cache_control.public = True
@@ -4072,50 +4081,99 @@ def verify_otp():
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <title>Redirecting to App</title>
-                    <meta http-equiv="refresh" content="0;url={redirect_url}">
+                    <title>Registration Successful - Fuetime</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        body {{
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            min-height: 100vh;
+                            margin: 0;
+                            background-color: #f5f5f5;
+                            text-align: center;
+                        }}
+                        .success-container {{
+                            background: white;
+                            padding: 2rem;
+                            border-radius: 10px;
+                            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                            max-width: 500px;
+                            width: 90%;
+                        }}
+                        .success-icon {{
+                            font-size: 4rem;
+                            color: #28a745;
+                            margin-bottom: 1rem;
+                        }}
+                        .success-message {{
+                            font-size: 1.5rem;
+                            margin-bottom: 1.5rem;
+                            color: #333;
+                        }}
+                        .redirect-button {{
+                            display: inline-block;
+                            background-color: #007bff;
+                            color: white;
+                            padding: 12px 24px;
+                            border-radius: 5px;
+                            text-decoration: none;
+                            font-weight: 500;
+                            transition: background-color 0.3s;
+                            border: none;
+                            cursor: pointer;
+                            font-size: 1rem;
+                        }}
+                        .redirect-button:hover {{
+                            background-color: #0056b3;
+                        }}
+                        .redirect-note {{
+                            margin-top: 1.5rem;
+                            color: #6c757d;
+                            font-size: 0.9rem;
+                        }}
+                    </style>
                     <script>
                         // Try to redirect immediately
                         window.location.href = '{redirect_url}';
                         
                         // Fallback in case the app doesn't open
                         setTimeout(function() {{
-                            // Redirect to a fallback URL or show a message
-                            document.body.innerHTML = (
-                                '<p>Redirecting to app... <a href="{redirect_url}">Click here</a> if not redirected automatically.</p>' +
-                                '<p>Or <a href="/">return to home</a>.</p>'
-                            );
+                            // If we're still here after 1 second, show the success message
+                            document.getElementById('success-content').style.display = 'block';
                         }}, 1000);
                     </script>
                 </head>
                 <body>
-                    <p>Redirecting to app... Please wait...</p>
+                    <div id="success-content" style="display: none;">
+                        <div class="success-container">
+                            <div class="success-icon">✓</div>
+                            <h1 class="success-message">Registration Successful!</h1>
+                            <p>Welcome to Fuetime! You're all set to start using our platform.</p>
+                            <a href="{redirect_url}" class="redirect-button">Continue to App</a>
+                            <p class="redirect-note">If you're not redirected automatically, please click the button above.</p>
+                        </div>
+                    </div>
                 </body>
                 </html>
                 """
-                
-                response_data = {
-                    'success': True,
-                    'message': 'Registration successful!',
-                    'token': auth_token,
-                    'user': {
-                        'id': user.id,
-                        'email': user.email,
-                        'full_name': user.full_name,
-                        'phone': user.phone
-                    },
-                    'redirect_url': redirect_url
-                }
-                print(f"[DEBUG] Response data: {response_data}")
-                
-                # Return both JSON and HTML responses
-                if request.headers.get('Accept') == 'application/json':
-                    return jsonify(response_data)
-                else:
-                    # For form submissions, return the HTML page with redirect
-                    return response_html
-
-            # For web users
+                # For AJAX/Flutter requests, return JSON with redirect URL
+                if is_ajax or is_flutter_request:
+                    return jsonify({
+                        'success': True,
+                        'message': 'Registration successful! Welcome to Fuetime!',
+                        'redirect_url': f'fuetimeapp://auth/user/callback?token={auth_token}',
+                        'html': f'''
+                            <div class="alert alert-success">
+                                <h4>Registration Successful!</h4>
+                                <p>Welcome to Fuetime! You're all set to start using our platform.</p>
+                                <a href="/" class="btn btn-primary">Go to Dashboard</a>
+                            </div>
+                        '''
+                    })
+            
+            # For non-AJAX web users
             flash('Registration successful! Welcome to Fuetime!', 'success')
             return redirect(url_for('main.index'))
 
@@ -4133,7 +4191,9 @@ def verify_otp():
 
     # For GET request, show OTP verification form
     source = request.args.get('source', '')
-    return render_template('verify_otp.html', source=source)
+    return render_template('verify_otp.html', 
+                         source=source,
+                         messages=get_flashed_messages(with_categories=True))
 
 @app.route('/verify-business-otp', methods=['GET', 'POST'])
 def verify_business_otp():

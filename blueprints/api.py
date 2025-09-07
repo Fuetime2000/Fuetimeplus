@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta, timezone
 import json
-from flask import Blueprint, request, jsonify, current_app, url_for, send_from_directory, abort, send_file, render_template_string
+from datetime import datetime
+from flask import Blueprint, request, jsonify, current_app, url_for, url_for, send_from_directory, abort, send_file, render_template_string
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
-from flask_mail import Message
-from sqlalchemy import or_, and_, desc, func
+import os
+from flask_mail import Message as MailMessage
+from sqlalchemy import or_, and_, desc, func, delete, update
 import hmac
 import hashlib
 from flask_cors import cross_origin
@@ -41,7 +43,8 @@ from models.review import Review
 from models.transaction import Transaction
 from models.Call import Call
 from models.message import Message
-from models.user import User
+from models.report import Report
+from models.saved_user import SavedUser
 from extensions import db
 from datetime import datetime
 from flask import current_app
@@ -50,11 +53,62 @@ from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 import traceback
 import uuid
 
-api_bp = Blueprint('api', __name__)
+api_bp = Blueprint('api', __name__, url_prefix='/v1')
 # Explicitly disable CSRF protection for all API endpoints
 api_bp.config = {}
 api_bp.config['WTF_CSRF_ENABLED'] = False
 api_bp.config['WTF_CSRF_CHECK_DEFAULT'] = False
+
+@api_bp.route('/uploads/<path:filename>')
+@api_bp.route('/static/uploads/<path:filename>')
+def uploaded_file(filename):
+    """Serve uploaded files from both /api/v1/uploads/ and /static/uploads/"""
+    try:
+        # Define the base upload directory
+        uploads_dir = os.path.join(current_app.root_path, 'static', 'uploads')
+        
+        # Ensure the uploads directory exists
+        os.makedirs(uploads_dir, exist_ok=True)
+        
+        # Debug information
+        current_app.logger.info(f"Looking for file: {filename}")
+        current_app.logger.info(f"Application root path: {current_app.root_path}")
+        current_app.logger.info(f"Current working directory: {os.getcwd()}")
+        current_app.logger.info(f"Uploads directory: {uploads_dir}")
+        
+        # List files in the uploads directory for debugging
+        try:
+            files = os.listdir(uploads_dir)
+            current_app.logger.info(f"Files in uploads directory: {files}")
+            
+            # Log if the requested file exists
+            file_path = os.path.join(uploads_dir, filename)
+            current_app.logger.info(f"Looking for file at: {file_path}")
+            current_app.logger.info(f"File exists: {os.path.exists(file_path)}")
+            
+            # Check if file exists and is accessible
+            if os.path.isfile(file_path):
+                current_app.logger.info(f"Serving file from: {file_path}")
+                return send_from_directory(
+                    uploads_dir,
+                    filename,
+                    as_attachment=False,
+                    cache_timeout=31536000  # 1 year cache
+                )
+            
+        except Exception as e:
+            current_app.logger.error(f"Error accessing uploads directory: {str(e)}")
+            
+        # If we get here, file wasn't found
+        current_app.logger.error(f"File not found: {filename}")
+        current_app.logger.info(f"Current working directory: {os.getcwd()}")
+        current_app.logger.info(f"App root path: {current_app.root_path}")
+        
+        return jsonify({"error": "File not found"}), 404
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in uploaded_file: {str(e)}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 # Configure JWT error handlers
 @api_bp.errorhandler(422)
@@ -457,8 +511,9 @@ def flutter_register():
                     'full_name': user.full_name,
                     'user_type': user.user_type,
                     'phone': user.phone,
-                    'is_verified': user.email_verified,
-                    'profile_photo': url_for('static', filename=user.photo, _external=True) if hasattr(user, 'photo') and user.photo else None
+                    'is_verified': user.verified,
+                    'email_verified': user.email_verified,
+                    'profile_photo': url_for('serve_profile_pic', filename=user.photo, _external=True) if hasattr(user, 'photo') and user.photo else url_for('static', filename='img/default-avatar.png', _external=True)
                 },
                 'tokens': {
                     'access_token': access_token,
@@ -639,8 +694,9 @@ def login():
                     'full_name': user.full_name,
                     'user_type': user.user_type,
                     'phone': user.phone,
-                    'is_verified': user.email_verified,
-                    'profile_photo': url_for('static', filename=user.photo, _external=True) if hasattr(user, 'photo') and user.photo else None
+                    'is_verified': user.verified,
+                    'email_verified': user.email_verified,
+                    'profile_photo': url_for('serve_profile_pic', filename=user.photo, _external=True) if hasattr(user, 'photo') and user.photo else url_for('static', filename='img/default-avatar.png', _external=True)
                 },
                 'tokens': {
                     'access_token': access_token,
@@ -879,21 +935,25 @@ def handle_profile_photo_upload():
         # Handle subject field if present (some clients send this in different ways)
         subject = None
         
-        # 1. First try to get subject from URL parameters
-        if 'subject' in request.args:
+        # Check for subject in headers first (common in mobile apps)
+        if 'Subject' in request.headers:
+            subject = request.headers.get('Subject')
+            current_app.logger.info(f"\n[1/4] Got subject from headers: {repr(subject)} (type: {type(subject).__name__})")
+        # 1. Try to get subject from URL parameters
+        elif 'subject' in request.args:
             subject = request.args.get('subject')
-            current_app.logger.info(f"\n[1/3] Got subject from URL parameters: {repr(subject)} (type: {type(subject).__name__})")
+            current_app.logger.info(f"\n[2/4] Got subject from URL parameters: {repr(subject)} (type: {type(subject).__name__})")
         # 2. Then try to get from form data
         elif 'subject' in request.form:
             subject = request.form['subject']
-            current_app.logger.info(f"\n[2/3] Got subject from form data: {repr(subject)} (type: {type(subject).__name__})")
+            current_app.logger.info(f"\n[3/4] Got subject from form data: {repr(subject)} (type: {type(subject).__name__})")
         # 3. Then try to get from JSON data if present in form
         elif 'data' in request.form:
             try:
                 data = json.loads(request.form['data'])
                 subject = data.get('subject')
                 if subject is not None:
-                    current_app.logger.info(f"\n[3/3] Got subject from JSON data: {repr(subject)} (type: {type(subject).__name__})")
+                    current_app.logger.info(f"\n[4/4] Got subject from JSON data: {repr(subject)} (type: {type(subject).__name__})")
             except (json.JSONDecodeError, AttributeError) as e:
                 current_app.logger.warning(f"Failed to parse JSON data: {e}")
         
@@ -909,11 +969,11 @@ def handle_profile_photo_upload():
                     current_app.logger.info(f"Converted subject to string: {repr(subject)}")
                 except Exception as e:
                     current_app.logger.error(f"Failed to convert subject to string: {e}")
-                    subject = "default_subject"
+                    subject = "profile_photo_upload"
                     current_app.logger.info(f"Using default subject: {subject}")
         else:
-            current_app.logger.warning("\nNo subject found in request, using default")
-            subject = "default_subject"
+            current_app.logger.info("\nNo subject found in request headers, URL params, form data, or JSON - this is normal for profile uploads")
+            subject = "profile_photo_upload"
             
         current_app.logger.info(f"\n=== FINAL SUBJECT ===")
         current_app.logger.info(f"Subject being used: {repr(subject)} (type: {type(subject).__name__})")
@@ -927,10 +987,26 @@ def handle_profile_photo_upload():
                 current_app.logger.info(f"Validating file in field: {field_name}")
                 if not file.filename:
                     current_app.logger.error(f"  - No filename provided in field: {field_name}")
-                if not file.content_type or not file.content_type.startswith('image/'):
+                
+                # More flexible content type validation
+                is_valid_content_type = (
+                    file.content_type and (
+                        file.content_type.startswith('image/') or
+                        file.content_type == 'application/octet-stream'
+                    )
+                )
+                if not is_valid_content_type:
                     current_app.logger.warning(f"  - Invalid content type: {file.content_type} in field: {field_name}")
-                if not file.content_length or file.content_length <= 0:
-                    current_app.logger.error(f"  - Empty file in field: {field_name}")
+                
+                # Check file size by reading the file stream instead of relying on content_length
+                file.seek(0, 2)  # Seek to end
+                file_size = file.tell()
+                file.seek(0)  # Reset to beginning
+                
+                if file_size <= 0:
+                    current_app.logger.error(f"  - Empty file in field: {field_name} (size: {file_size} bytes)")
+                else:
+                    current_app.logger.info(f"  - File size: {file_size} bytes in field: {field_name}")
         
         current_app.logger.info("\n=== END PROFILE PHOTO UPLOAD PROCESSING ===\n")
         
@@ -984,19 +1060,65 @@ def handle_profile_photo_upload():
                 'code': 400
             }
             
+        # Validate file size by reading the stream
+        photo.seek(0, 2)  # Seek to end
+        file_size = photo.tell()
+        photo.seek(0)  # Reset to beginning
+        
+        if file_size <= 0:
+            current_app.logger.error(f"Empty file detected: {file_size} bytes")
+            return {
+                'status': 'error',
+                'message': 'Empty file uploaded',
+                'code': 400
+            }
+            
+        current_app.logger.info(f"File size validated: {file_size} bytes")
+            
         if photo:
             user_id = get_jwt_identity()
             user = User.query.get_or_404(user_id)
             
+            # Validate file type by checking file signature (magic bytes)
+            photo.seek(0)
+            file_header = photo.read(10)
+            photo.seek(0)  # Reset to beginning
+            
+            # Check for common image file signatures
+            is_valid_image = (
+                file_header.startswith(b'\x89PNG') or  # PNG
+                file_header.startswith(b'\xff\xd8\xff') or  # JPEG
+                file_header.startswith(b'GIF87a') or  # GIF87a
+                file_header.startswith(b'GIF89a') or  # GIF89a
+                file_header.startswith(b'RIFF') and b'WEBP' in file_header  # WebP
+            )
+            
+            if not is_valid_image:
+                current_app.logger.error(f"Invalid image file signature: {file_header}")
+                return {
+                    'status': 'error',
+                    'message': 'Invalid image file. Please upload a valid PNG, JPEG, GIF, or WebP image.',
+                    'code': 400
+                }
+            
             # Generate unique filename
             filename = secure_filename(photo.filename)
             ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-            if ext not in current_app.config.get('ALLOWED_EXTENSIONS', {'png', 'jpg', 'jpeg', 'gif'}):
-                return {
-                    'status': 'error',
-                    'message': 'Invalid file type. Allowed types are: png, jpg, jpeg, gif',
-                    'code': 400
-                }
+            
+            # Determine extension from file signature if not present or incorrect
+            if not ext or ext not in {'png', 'jpg', 'jpeg', 'gif', 'webp'}:
+                if file_header.startswith(b'\x89PNG'):
+                    ext = 'png'
+                elif file_header.startswith(b'\xff\xd8\xff'):
+                    ext = 'jpg'
+                elif file_header.startswith(b'GIF'):
+                    ext = 'gif'
+                elif b'WEBP' in file_header:
+                    ext = 'webp'
+                else:
+                    ext = 'jpg'  # Default fallback
+                    
+            current_app.logger.info(f"Using file extension: {ext}")
                 
             new_filename = f"{uuid.uuid4()}.{ext}"
             
@@ -1029,10 +1151,16 @@ def handle_profile_photo_upload():
             user.photo = new_filename
             db.session.commit()
             
+            # Generate URL using the serve_profile_pic route
+            photo_url = url_for('serve_profile_pic', filename=new_filename, _external=True)
+            
+            # Log the generated URL for debugging
+            current_app.logger.info(f"Generated photo URL: {photo_url}")
+            
             return {
                 'status': 'success',
                 'message': 'Profile photo updated successfully',
-                'photo_url': url_for('static', filename=f'uploads/profile_pics/{new_filename}', _external=True),
+                'photo_url': photo_url,
                 'code': 200
             }
             
@@ -1071,6 +1199,9 @@ def upload_profile_image():
     - URL parameter: ?subject=value
     - Form field: subject=value
     - Nested in JSON: data={"subject":"value"}
+    
+    Returns:
+        JSON response with status, message, and photo_url on success
     """
     try:
         # Log detailed request information
@@ -1078,19 +1209,26 @@ def upload_profile_image():
         current_app.logger.info("===== New Profile Image Upload Request =====")
         current_app.logger.info(f"Request method: {request.method}")
         current_app.logger.info(f"Endpoint: {request.path}")
-        current_app.logger.info(f"Full URL: {request.url}")
-        current_app.logger.info(f"Headers: {dict(request.headers)}")
-        current_app.logger.info(f"Content type: {request.content_type}")
-        current_app.logger.info(f"Form data keys: {list(request.form.keys())}")
-        current_app.logger.info(f"Files received: {list(request.files.keys())}")
-        current_app.logger.info(f"Request args: {request.args}")
         
-        # Log raw request data for debugging
+        # Call the helper function to handle the upload
+        result = handle_profile_photo_upload()
+        
+        # Log the result before returning
+        current_app.logger.info(f"Upload result: {result}")
+        
+        # Return the response with the appropriate status code
+        response_data = {k: v for k, v in result.items() if k != 'code'}
+        return jsonify(response_data), result.get('code', 200)
+        
+    except Exception as e:
+        current_app.logger.error(f"Unexpected error in upload_profile_image: {str(e)}")
+        
+        # Log request details for debugging
         try:
             raw_data = request.get_data(as_text=True)
-            current_app.logger.info(f"Raw request data (first 1000 chars): {raw_data[:1000]}")
-        except Exception as e:
-            current_app.logger.warning(f"Could not read raw request data: {str(e)}")
+            current_app.logger.info(f"Raw request data (first 1000 chars): {raw_data[:1000] if raw_data else 'No data'}")
+        except Exception as debug_e:
+            current_app.logger.warning(f"Could not read raw request data: {str(debug_e)}")
             
         # Log each file's details
         for key, file in request.files.items():
@@ -1099,8 +1237,8 @@ def upload_profile_image():
         # Log each form field
         for key, value in request.form.items():
             current_app.logger.info(f"Form field '{key}': {value}")
-        
-        # Ensure the request has the correct content type
+            
+        # Check content type
         if not request.content_type or 'multipart/form-data' not in request.content_type:
             error_msg = f"Invalid content type: {request.content_type}. Expected multipart/form-data"
             current_app.logger.error(error_msg)
@@ -1108,7 +1246,7 @@ def upload_profile_image():
                 'status': 'error',
                 'message': error_msg
             }), 415  # Unsupported Media Type
-        
+            
         # Check if request has files data
         if not request.files:
             error_msg = "No files found in the request"
@@ -1724,6 +1862,109 @@ def create_wallet_order():
             'message': 'An unexpected error occurred. Please try again.'
         }), 500
 
+@api_bp.route('/wallet/deduct-call', methods=['POST'])
+@jwt_required()
+def deduct_call_charges():
+    """
+    Direct wallet deduction for call charges (bypasses Razorpay)
+    Expected JSON payload:
+    {
+        "amount": 2.5,
+        "call_id": "call_xyz",
+        "callee_id": 8  # User receiving the payment
+    }
+    """
+    current_user_id = int(get_jwt_identity())
+    
+    current_app.logger.info(f"[CALL_DEDUCT] Request from user {current_user_id}")
+    
+    try:
+        data = request.get_json()
+        current_app.logger.info(f"[CALL_DEDUCT] Request data: {data}")
+        
+        if not data or 'amount' not in data:
+            return jsonify({
+                'status': 'error',
+                'message': 'Amount is required'
+            }), 400
+        
+        amount = float(data['amount'])
+        callee_id = data.get('callee_id')
+        call_id = data.get('call_id', f'call_{int(datetime.utcnow().timestamp())}')
+        
+        # Get caller (current user)
+        caller = User.query.get(current_user_id)
+        if not caller:
+            return jsonify({'status': 'error', 'message': 'User not found'}), 404
+        
+        caller_balance = float(caller.wallet_balance) if caller.wallet_balance else 0.0
+        
+        # Check sufficient balance
+        if caller_balance < amount:
+            return jsonify({
+                'status': 'error',
+                'message': 'Insufficient wallet balance',
+                'current_balance': caller_balance,
+                'required_amount': amount
+            }), 400
+        
+        # Deduct from caller
+        caller.wallet_balance = round(caller_balance - amount, 2)
+        
+        # Create deduction transaction
+        deduction_tx = Transaction(
+            user_id=current_user_id,
+            amount=-amount,
+            transaction_type='debit',
+            status='completed',
+            description=f'Call charge: ₹{amount}',
+            reference_id=call_id,
+            metadata={'type': 'call_charge', 'call_id': call_id}
+        )
+        db.session.add(deduction_tx)
+        
+        # Add to callee if provided
+        if callee_id:
+            callee = User.query.get(callee_id)
+            if callee:
+                earning = round(amount * 0.8, 2)  # 80% to callee
+                callee_balance = float(callee.wallet_balance) if callee.wallet_balance else 0.0
+                callee.wallet_balance = round(callee_balance + earning, 2)
+                
+                # Create earning transaction
+                earning_tx = Transaction(
+                    user_id=callee_id,
+                    amount=earning,
+                    transaction_type='credit',
+                    status='completed',
+                    description=f'Call earning: ₹{earning}',
+                    reference_id=call_id,
+                    metadata={'type': 'call_earning', 'call_id': call_id}
+                )
+                db.session.add(earning_tx)
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"[CALL_DEDUCT] Deducted ₹{amount} from user {current_user_id}")
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Deducted ₹{amount} from wallet',
+            'wallet': {
+                'balance': caller.wallet_balance,
+                'deducted_amount': amount,
+                'transaction_id': deduction_tx.id
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"[CALL_DEDUCT] Error: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to process deduction'
+        }), 500
+
 @api_bp.route('/portfolio', methods=['GET', 'POST', 'PUT'])
 @jwt_required(optional=True)
 def manage_portfolio():
@@ -1826,7 +2067,7 @@ def get_user_reviews(user_id):
             reviews_data.append({
                 'id': review.id,
                 'reviewer_name': reviewer_name,
-                'reviewer_photo': url_for('static', filename=f'uploads/profile_pics/{reviewer_photo}', _external=True) if reviewer_photo else None,
+                'reviewer_photo': url_for('serve_profile_pic', filename=reviewer_photo, _external=True) if reviewer_photo else url_for('static', filename='img/default-avatar.png', _external=True),
                 'rating': review.rating,
                 'comment': review.comment,
                 'created_at': review.created_at.isoformat() if review.created_at else None,
@@ -2039,7 +2280,7 @@ def get_account():
                 'full_name': user.full_name,
                 'phone': user.phone,
                 'user_type': user.user_type,
-                'profile_photo': url_for('static', filename=f'uploads/profile_photos/{user.photo}') if hasattr(user, 'photo') and user.photo else None,
+                'profile_photo': url_for('serve_profile_pic', filename=user.photo, _external=True) if hasattr(user, 'photo') and user.photo else url_for('static', filename='img/default-avatar.png', _external=True),
                 'created_at': user.created_at.isoformat() if user.created_at else None,
                 'last_login': user.last_login.isoformat() if hasattr(user, 'last_login') and user.last_login else None,
                 'is_active': user.active,
@@ -2074,7 +2315,13 @@ def update_account():
         "bio": "Updated bio",
         "address": "123 New Street, City",
         "date_of_birth": "1990-01-01",
-        "gender": "male/female/other/prefer_not_to_say"
+        "gender": "male/female/other/prefer_not_to_say",
+        "profession": "Software Developer",
+        "experience": "5 years",
+        "education": "Bachelor's in Computer Science",
+        "skills": "Python, JavaScript, Flutter",
+        "payment_rate": 50.0,
+        "payment_type": "hourly"
     }
     """
     try:
@@ -2119,6 +2366,28 @@ def update_account():
         if 'bio' in data and hasattr(user, 'bio'):
             user.bio = data['bio']
             
+        # Update location if provided
+        if 'location' in data and data['location']:
+            try:
+                location_str = data['location']
+                coordinates = get_coordinates(location_str)
+                
+                if coordinates:
+                    user.current_location = location_str
+                    user.live_location = f"{coordinates[0]},{coordinates[1]}"
+                    current_app.logger.info(f"Updated location for user {user_id}: {location_str} ({coordinates[0]}, {coordinates[1]})")
+                else:
+                    current_app.logger.warning(f"Could not geocode location: {location_str}")
+                    # Optionally, you could return an error here if geocoding is required
+                    # return jsonify({
+                    #     'status': 'error',
+                    #     'message': 'Could not find coordinates for the provided location'
+                    # }), 400
+            except Exception as e:
+                current_app.logger.error(f"Error updating location: {str(e)}")
+                # Continue without failing the entire update
+                
+        # Update optional fields
         if 'address' in data and hasattr(user, 'address'):
             user.address = data['address']
             
@@ -2133,6 +2402,31 @@ def update_account():
                 
         if 'gender' in data and hasattr(user, 'gender') and data['gender'] in ['male', 'female', 'other', 'prefer_not_to_say']:
             user.gender = data['gender']
+            
+        # Update additional profile fields
+        if 'profession' in data and hasattr(user, 'profession'):
+            user.profession = data['profession']
+            
+        if 'experience' in data and hasattr(user, 'experience'):
+            user.experience = data['experience']
+            
+        if 'education' in data and hasattr(user, 'education'):
+            user.education = data['education']
+            
+        if 'skills' in data and hasattr(user, 'skills'):
+            user.skills = data['skills']
+            
+        if 'payment_rate' in data and hasattr(user, 'payment_charge'):
+            try:
+                user.payment_charge = float(data['payment_rate']) if data['payment_rate'] is not None else None
+            except (ValueError, TypeError):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid payment rate format. Must be a number.'
+                }), 400
+                
+        if 'payment_type' in data and hasattr(user, 'payment_type') and data['payment_type'] in ['hourly', 'daily', 'monthly', 'fixed']:
+            user.payment_type = data['payment_type']
         
         db.session.commit()
         
@@ -2147,7 +2441,19 @@ def update_account():
                 'bio': getattr(user, 'bio', None),
                 'address': getattr(user, 'address', None),
                 'date_of_birth': user.date_of_birth.isoformat() if hasattr(user, 'date_of_birth') and user.date_of_birth else None,
-                'gender': getattr(user, 'gender', None)
+                'gender': getattr(user, 'gender', None),
+                'profession': getattr(user, 'profession', None),
+                'experience': getattr(user, 'experience', None),
+                'education': getattr(user, 'education', None),
+                'skills': getattr(user, 'skills', None),
+                'payment_rate': float(user.payment_charge) if hasattr(user, 'payment_charge') and user.payment_charge is not None else None,
+                'payment_charge': float(user.payment_charge) if hasattr(user, 'payment_charge') and user.payment_charge is not None else None,
+                'payment_type': getattr(user, 'payment_type', 'hourly'),
+'location': getattr(user, 'current_location', ''),
+                'current_location': getattr(user, 'current_location', ''),
+                'live_location': getattr(user, 'live_location', ''),
+                'latitude': float(user.live_location.split(',')[0]) if user.live_location and ',' in user.live_location else None,
+                'longitude': float(user.live_location.split(',')[1]) if user.live_location and ',' in user.live_location else None
             }
         })
         
@@ -2471,7 +2777,7 @@ def get_conversations():
             result.append({
                 'user_id': partner_id,
                 'full_name': full_name,
-                'photo': url_for('static', filename=photo, _external=True) if photo else None,
+                'photo': url_for('serve_profile_pic', filename=photo, _external=True) if photo else url_for('static', filename='img/default-avatar.png', _external=True),
                 'profession': work,
                 'last_message': {
                     'id': msg.id,
@@ -2495,18 +2801,39 @@ def get_conversations():
             'message': 'Failed to fetch conversations'
         }), 500
 
+@api_bp.route('/chat/messages', methods=['GET'])
 @api_bp.route('/chat/messages/<int:other_user_id>', methods=['GET'])
 @jwt_required()
-def get_messages(other_user_id):
+def get_messages(other_user_id=None):
     """
     Get messages between current user and another user
     Query Parameters:
+    - other_user_id: ID of the other user (required)
     - limit: Number of messages to return (default: 50, max: 100)
-    - before: Message ID to get messages before (for pagination)
+    - page: Page number for pagination (default: 1)
+    - before: Message ID to get messages before (alternative to page)
     """
     try:
         current_user_id = get_jwt_identity()
+        # Get other_user_id from URL path or query parameter
+        other_user_id = other_user_id or request.args.get('other_user_id')
+        
+        if not other_user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'other_user_id is required'
+            }), 400
+            
+        try:
+            other_user_id = int(other_user_id)
+        except (ValueError, TypeError):
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid other_user_id'
+            }), 400
+            
         limit = min(int(request.args.get('limit', 50)), 100)
+        page = max(int(request.args.get('page', 1)), 1)
         before = request.args.get('before')
         
         query = Message.query.filter(
@@ -2516,10 +2843,14 @@ def get_messages(other_user_id):
             )
         )
         
+        # Apply pagination
         if before:
             query = query.filter(Message.id < before)
-            
-        messages = query.order_by(Message.id.desc()).limit(limit).all()
+            messages = query.order_by(Message.id.desc()).limit(limit).all()
+        else:
+            # Calculate offset for page-based pagination
+            offset = (page - 1) * limit
+            messages = query.order_by(Message.id.desc()).offset(offset).limit(limit).all()
         
         # Mark messages as read
         unread_messages = [msg for msg in messages if msg.receiver_id == current_user_id and not msg.is_read]
@@ -2527,6 +2858,10 @@ def get_messages(other_user_id):
             for msg in unread_messages:
                 msg.is_read = True
             db.session.commit()
+        
+        # Get total count for pagination
+        total_messages = query.count()
+        total_pages = (total_messages + limit - 1) // limit  # Ceiling division
         
         result = [{
             'id': msg.id,
@@ -2542,7 +2877,15 @@ def get_messages(other_user_id):
         
         return jsonify({
             'status': 'success',
-            'data': result
+            'data': result,
+            'pagination': {
+                'total': total_messages,
+                'page': page,
+                'per_page': limit,
+                'total_pages': total_pages,
+                'has_next': page < total_pages,
+                'has_prev': page > 1
+            }
         })
         
     except Exception as e:
@@ -2552,6 +2895,7 @@ def get_messages(other_user_id):
             'message': 'Failed to fetch messages'
         }), 500
 
+@api_bp.route('/chat/send', methods=['POST'])
 @api_bp.route('/chat/messages', methods=['POST'])
 @jwt_required()
 def send_message():
@@ -2624,6 +2968,117 @@ def send_message():
         return jsonify({
             'status': 'error',
             'message': 'Failed to send message'
+        }), 500
+
+@api_bp.route('/chat/messages/delete', methods=['POST', 'DELETE'])
+@api_bp.route('/chat/messages/<int:message_id>', methods=['DELETE'])
+@jwt_required()
+def delete_message(message_id=None):
+    """
+    Delete a message (soft delete)
+    
+    Supports both:
+    - DELETE /api/v1/chat/messages/123
+    - POST /api/v1/chat/delete with JSON body: {"message_id": 123}
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # If message_id is not in URL, get it from request body
+        if message_id is None:
+            data = request.get_json() or {}
+            if 'message_id' not in data:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Message ID is required'
+                }), 400
+            message_id = data['message_id']
+        
+        # Get the message
+        message = Message.query.filter_by(id=message_id).first()
+        
+        if not message:
+            return jsonify({
+                'status': 'error',
+                'message': 'Message not found or already deleted'
+            }), 404
+            
+        # Check if the current user is the sender or receiver
+        if message.sender_id != current_user_id and message.receiver_id != current_user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'Unauthorized to delete this message'
+            }), 403
+            
+        # Soft delete the message (mark as deleted)
+        message.is_deleted = True
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Message deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error deleting message: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to delete message'
+        }), 500
+
+@api_bp.route('/chat/clear', methods=['POST'])
+@jwt_required()
+def clear_chat():
+    """
+    Clear chat history with a specific user
+    Expected JSON payload:
+    {
+        "other_user_id": 123  # ID of the other user in the conversation
+    }
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        if not data or 'other_user_id' not in data:
+            return jsonify({
+                'status': 'error',
+                'message': 'other_user_id is required'
+            }), 400
+            
+        other_user_id = data['other_user_id']
+        
+        # Delete all messages between the two users
+        deleted = db.session.execute(
+            delete(Message)
+            .where(
+                or_(
+                    and_(
+                        Message.sender_id == current_user_id,
+                        Message.receiver_id == other_user_id
+                    ),
+                    and_(
+                        Message.sender_id == other_user_id,
+                        Message.receiver_id == current_user_id
+                    )
+                )
+            )
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Chat history cleared successfully. {deleted.rowcount} messages removed.'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error clearing chat history: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to clear chat history'
         }), 500
 
 @api_bp.route('/chat/messages/read', methods=['POST'])
@@ -2742,11 +3197,11 @@ def forgot_password():
         <p>If you didn't request this, please ignore this email.</p>
         """
         
-        msg = Message(
+        msg = MailMessage(
             subject=subject,
             recipients=[user.email],
             html=html,
-            sender_=current_app.config.get('MAIL_DEFAULT_SENDER')
+            sender=current_app.config.get('MAIL_DEFAULT_SENDER')
         )
         
         try:
@@ -3027,32 +3482,79 @@ def update_verification_status():
 
 def serve_profile_pic(filename):
     try:
+        current_app.logger.info(f"\n=== SERVING PROFILE PICTURE ===")
+        current_app.logger.info(f"Requested filename: {filename}")
+        
         if not filename or filename == 'None':
+            current_app.logger.info("No filename provided, serving default avatar")
             return send_from_directory('static', 'img/default-avatar.png')
-            
+        
         # Security check to prevent directory traversal
         if '..' in filename or filename.startswith('/'):
+            current_app.logger.warning(f"Potential directory traversal attempt with filename: {filename}")
             return send_from_directory('static', 'img/default-avatar.png')
         
-        # Check if file exists in profile_pics folder
-        profile_pics_path = os.path.join(current_app.config.get('UPLOAD_FOLDER', 'static/uploads'), 'profile_pics')
+        # Get the upload folder from config or use default
+        upload_folder = os.path.abspath(current_app.config.get('UPLOAD_FOLDER', 'static/uploads'))
+        current_app.logger.info(f"Using upload folder: {upload_folder}")
+        
+        # Check profile_pics directory first
+        profile_pics_path = os.path.join(upload_folder, 'profile_pics')
         os.makedirs(profile_pics_path, exist_ok=True)
         
+        # Check in profile_pics directory
         file_path = os.path.join(profile_pics_path, filename)
+        current_app.logger.info(f"Checking for file at: {file_path}")
+        
         if os.path.isfile(file_path):
-            return send_from_directory(profile_pics_path, filename)
+            current_app.logger.info(f"Serving file from profile_pics: {file_path}")
+            try:
+                return send_from_directory(profile_pics_path, filename)
+            except Exception as e:
+                current_app.logger.error(f"Error serving from profile_pics: {str(e)}")
+        
+        # If not found, check root uploads directory
+        root_file_path = os.path.join(upload_folder, filename)
+        current_app.logger.info(f"File not found in profile_pics, checking: {root_file_path}")
+        
+        if os.path.isfile(root_file_path):
+            current_app.logger.info(f"Serving file from uploads root: {root_file_path}")
+            try:
+                return send_from_directory(upload_folder, filename)
+            except Exception as e:
+                current_app.logger.error(f"Error serving from uploads root: {str(e)}")
+        
+        # Log directory structure for debugging
+        try:
+            current_app.logger.info("\n=== DIRECTORY STRUCTURE ===")
             
-        # If not found in profile_pics, check the root uploads folder
-        uploads_path = current_app.config.get('UPLOAD_FOLDER', 'static/uploads')
-        uploads_path = os.path.abspath(uploads_path)  # Ensure absolute path
-        if os.path.isfile(os.path.join(uploads_path, filename)):
-            return send_from_directory(uploads_path, filename)
+            # Log current working directory
+            current_app.logger.info(f"Current working directory: {os.getcwd()}")
             
-        # If not found anywhere, return default avatar
+            # Log upload folder structure
+            current_app.logger.info(f"\nUpload folder: {upload_folder}")
+            if os.path.exists(upload_folder):
+                for root, dirs, files in os.walk(upload_folder):
+                    level = root.replace(upload_folder, '').count(os.sep)
+                    indent = ' ' * 4 * level
+                    current_app.logger.info(f"{indent}{os.path.basename(root)}/")
+                    subindent = ' ' * 4 * (level + 1)
+                    for f in files[:10]:  # Show first 10 files to avoid log spam
+                        current_app.logger.info(f"{subindent}{f}")
+                    if len(files) > 10:
+                        current_app.logger.info(f"{subindent}... and {len(files)-10} more files")
+            else:
+                current_app.logger.error(f"Upload folder does not exist: {upload_folder}")
+                
+        except Exception as e:
+            current_app.logger.error(f"Error listing directory contents: {str(e)}")
+        
+        current_app.logger.warning(f"File not found: {filename}, serving default avatar")
         return send_from_directory('static', 'img/default-avatar.png')
         
     except Exception as e:
-        current_app.logger.error(f"Error serving profile picture {filename}: {str(e)}")
+        current_app.logger.error(f"Error serving profile picture {filename}: {str(e)}", exc_info=True)
+        return send_from_directory('static', 'img/default-avatar.png')
         return send_from_directory('static', 'img/default-avatar.png')
 
 @api_bp.route('/call', methods=['POST'])
@@ -3078,7 +3580,7 @@ def handle_call():
         "call": { call_details }     # Current call state
     }
     """
-    current_user_id = get_jwt_identity()
+    current_user_id = int(get_jwt_identity())
     
     # Log incoming request for debugging
     current_app.logger.info(f"[CALL] Incoming request from user {current_user_id}")
@@ -3151,7 +3653,7 @@ def handle_call():
                 
             # Verify user is part of the call
             if current_user_id not in [call.caller_id, call.callee_id]:
-                current_app.error(f"[CALL] User {current_user_id} not authorized to update call {call_id}")
+                current_app.logger.error(f"[CALL] User {current_user_id} not authorized to update call {call_id}")
                 return jsonify({
                     'status': 'error',
                     'message': 'Unauthorized to update this call',
@@ -3188,20 +3690,27 @@ def handle_call():
                     'callee_exists': bool(callee)
                 }), 400
                 
+            # Ensure we're comparing integers with integers
+            caller_id = int(data['caller_id'])
+            callee_id = int(data['callee_id'])
+            
             # Verify caller or callee is the current user
-            if current_user_id not in [data['caller_id'], data['callee_id']]:
-                current_app.error(f"[CALL] User {current_user_id} not part of call")
+            if current_user_id not in [caller_id, callee_id]:
+                current_app.logger.error(f"[CALL] User {current_user_id} not part of call between {caller_id} and {callee_id}")
                 return jsonify({
                     'status': 'error',
                     'message': 'You must be part of the call',
-                    'error': 'not_call_participant'
+                    'error': 'not_call_participant',
+                    'current_user_id': current_user_id,
+                    'caller_id': caller_id,
+                    'callee_id': callee_id
                 }), 403
                 
             call_id = f"call_{uuid.uuid4().hex}"
             call = Call(
                 call_id=call_id,
-                caller_id=data['caller_id'],
-                callee_id=data['callee_id'],
+                caller_id=caller_id,  # Using the converted integer
+                callee_id=callee_id,  # Using the converted integer
                 status='initiated',
                 duration=0,
                 cost=0.0
@@ -3232,6 +3741,70 @@ def handle_call():
             call.duration = int((datetime.utcnow() - call.created_at).total_seconds())
             current_app.logger.info(f"[CALL] Calculated call duration: {call.duration} seconds")
         
+        # Handle wallet deduction for completed calls
+        if call.status == 'completed' and call.duration > 0:
+            # Calculate call cost based on duration and rate
+            call_rate = data.get('call_rate', 2.5)  # Default rate per minute
+            duration_minutes = call.duration / 60.0
+            calculated_cost = round(duration_minutes * call_rate, 2)
+            
+            # Use provided cost or calculated cost
+            final_cost = data.get('cost', calculated_cost)
+            call.cost = final_cost
+            
+            current_app.logger.info(f"[CALL] Call completed - Duration: {call.duration}s ({duration_minutes:.2f} min), Rate: ₹{call_rate}/min, Cost: ₹{final_cost}")
+            
+            # Deduct from caller's wallet
+            try:
+                caller = User.query.get(call.caller_id)
+                if caller:
+                    caller_balance = float(caller.wallet_balance) if caller.wallet_balance is not None else 0.0
+                    
+                    if caller_balance >= final_cost:
+                        # Deduct from caller
+                        caller.wallet_balance = round(caller_balance - final_cost, 2)
+                        
+                        # Create deduction transaction
+                        deduction_transaction = Transaction(
+                            user_id=call.caller_id,
+                            amount=-final_cost,
+                            transaction_type='debit',
+                            status='completed',
+                            description=f'Call charge: {duration_minutes:.1f} min @ ₹{call_rate}/min',
+                            reference_id=call.call_id,
+                            metadata={'type': 'call_charge', 'duration': call.duration, 'rate': call_rate}
+                        )
+                        db.session.add(deduction_transaction)
+                        
+                        # Add to callee's wallet (earnings)
+                        callee = User.query.get(call.callee_id)
+                        if callee:
+                            callee_balance = float(callee.wallet_balance) if callee.wallet_balance is not None else 0.0
+                            earning_amount = round(final_cost * 0.8, 2)  # 80% to callee, 20% platform fee
+                            callee.wallet_balance = round(callee_balance + earning_amount, 2)
+                            
+                            # Create earning transaction
+                            earning_transaction = Transaction(
+                                user_id=call.callee_id,
+                                amount=earning_amount,
+                                transaction_type='credit',
+                                status='completed',
+                                description=f'Call earning: {duration_minutes:.1f} min @ ₹{call_rate}/min',
+                                reference_id=call.call_id,
+                                metadata={'type': 'call_earning', 'duration': call.duration, 'rate': call_rate}
+                            )
+                            db.session.add(earning_transaction)
+                            
+                            current_app.logger.info(f"[CALL] Wallet updated - Caller {call.caller_id}: -₹{final_cost}, Callee {call.callee_id}: +₹{earning_amount}")
+                        
+                    else:
+                        current_app.logger.warning(f"[CALL] Insufficient balance for caller {call.caller_id}: ₹{caller_balance} < ₹{final_cost}")
+                        # You might want to handle insufficient balance differently
+                        
+            except Exception as wallet_error:
+                current_app.logger.error(f"[CALL] Wallet deduction error: {str(wallet_error)}")
+                # Continue with call completion even if wallet operation fails
+        
         db.session.commit()
         current_app.logger.info(f"[CALL] Call {call_id} updated successfully")
         
@@ -3253,7 +3826,7 @@ def handle_call():
             'message': 'An unexpected error occurred',
             'error': 'server_error',
             'error_id': error_id,
-            'error_details': str(e) if app.debug else None
+            'error_details': str(e) if current_app.debug else None
         }), 500
 
 @api_bp.route('/user/<int:user_id>', methods=['GET'])
@@ -3444,5 +4017,368 @@ def get_profiles():
         return jsonify({
             'status': 'error',
             'message': 'An error occurred while fetching profiles',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/save-user', methods=['POST'])
+@jwt_required()
+@cross_origin()
+@limiter.limit("50 per hour")
+def save_user():
+    """
+    Save/unsave a user profile for later viewing
+    Expected JSON payload:
+    {
+        "user_id": 123,
+        "action": "save" or "unsave"
+    }
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'Authentication required'
+            }), 401
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No data provided'
+            }), 400
+        
+        user_id_to_save = data.get('user_id')
+        action = data.get('action', 'save')
+        
+        if not user_id_to_save:
+            return jsonify({
+                'status': 'error',
+                'message': 'user_id is required'
+            }), 400
+        
+        if action not in ['save', 'unsave']:
+            return jsonify({
+                'status': 'error',
+                'message': 'action must be either "save" or "unsave"'
+            }), 400
+        
+        # Check if user exists
+        user_to_save = User.query.get(user_id_to_save)
+        if not user_to_save:
+            return jsonify({
+                'status': 'error',
+                'message': 'User not found'
+            }), 404
+        
+        # Prevent users from saving themselves
+        if str(current_user_id) == str(user_id_to_save):
+            return jsonify({
+                'status': 'error',
+                'message': 'Cannot save your own profile'
+            }), 400
+        
+        # Check if already saved
+        existing_save = SavedUser.query.filter_by(
+            user_id=current_user_id,
+            saved_user_id=user_id_to_save
+        ).first()
+        
+        if action == 'save':
+            if existing_save:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'User already saved',
+                    'data': {
+                        'is_saved': True,
+                        'saved_at': existing_save.created_at.isoformat()
+                    }
+                }), 200
+            
+            # Create new save
+            new_save = SavedUser(
+                user_id=current_user_id,
+                saved_user_id=user_id_to_save
+            )
+            db.session.add(new_save)
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'User saved successfully',
+                'data': {
+                    'is_saved': True,
+                    'saved_at': new_save.created_at.isoformat()
+                }
+            }), 201
+        
+        else:  # unsave
+            if not existing_save:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'User was not saved',
+                    'data': {
+                        'is_saved': False
+                    }
+                }), 200
+            
+            # Remove save
+            db.session.delete(existing_save)
+            db.session.commit()
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'User unsaved successfully',
+                'data': {
+                    'is_saved': False
+                }
+            }), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error in save_user: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while processing your request',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/saved-users', methods=['GET'])
+@jwt_required()
+@cross_origin()
+@limiter.limit("100 per hour")
+def get_saved_users():
+    """
+    Get all saved users for the current user
+    Query parameters:
+    - page: Page number (default: 1)
+    - per_page: Items per page (default: 20, max: 100)
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'Authentication required'
+            }), 401
+        
+        page = request.args.get('page', 1, type=int)
+        per_page = min(request.args.get('per_page', 20, type=int), 100)
+        
+        # Get saved users with pagination
+        saved_users_query = db.session.query(SavedUser, User).join(
+            User, SavedUser.saved_user_id == User.id
+        ).filter(
+            SavedUser.user_id == current_user_id,
+            User.active == True
+        ).order_by(SavedUser.created_at.desc())
+        
+        pagination = saved_users_query.paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        saved_users_list = []
+        for saved_user, user in pagination.items:
+            user_data = {
+                'id': user.id,
+                'full_name': user.full_name,
+                'profession': user.profession,
+                'experience': user.experience,
+                'education': user.education,
+                'phone': user.phone,  # Using the correct phone field from User model
+                'current_location': user.current_location,
+                'skills': user.skills,
+                'average_rating': user.average_rating,
+                'total_reviews': user.total_reviews,
+                'payment_type': user.payment_type,
+                'payment_charge': user.payment_charge,
+                'profile_photo': url_for('serve_profile_pic', filename=user.photo, _external=True) if user.photo else url_for('static', filename='img/default-avatar.png', _external=True),
+                'saved_at': saved_user.created_at.isoformat(),
+                'is_online': user.is_online,
+                'last_active': user.last_active.isoformat() if user.last_active else None
+            }
+            saved_users_list.append(user_data)
+        
+        return jsonify({
+            'status': 'success',
+            'data': saved_users_list,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total_pages': pagination.pages,
+                'total_items': pagination.total,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
+        }), 200
+    
+    except Exception as e:
+        current_app.logger.error(f'Error in get_saved_users: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while fetching saved users',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/report-user', methods=['POST'])
+@jwt_required()
+@cross_origin()
+@limiter.limit("10 per hour")
+def report_user():
+    """
+    Report a user for inappropriate behavior
+    Expected JSON payload:
+    {
+        "user_id": 123,
+        "reason": "spam",
+        "description": "Optional detailed description"
+    }
+    
+    Valid reasons: spam, harassment, fake_profile, inappropriate_content, scam, other
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'Authentication required'
+            }), 401
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No data provided'
+            }), 400
+        
+        user_id_to_report = data.get('user_id')
+        reason = data.get('reason')
+        description = data.get('description', '')
+        
+        # Validate required fields
+        if not user_id_to_report:
+            return jsonify({
+                'status': 'error',
+                'message': 'user_id is required'
+            }), 400
+        
+        if not reason:
+            return jsonify({
+                'status': 'error',
+                'message': 'reason is required'
+            }), 400
+        
+        # Map frontend reasons to backend reason codes
+        reason_mapping = {
+            'Inappropriate Profile Content': 'inappropriate_content',
+            'Spam or Scam Behavior': 'spam',
+            'Harassment or Hate Speech': 'harassment',
+            'Impersonation or Fake Profile': 'fake_profile',
+            'Other': 'other'
+        }
+        
+        # Get the backend reason code, defaulting to 'other' if not found
+        backend_reason = reason_mapping.get(reason, 'other')
+        
+        # If it's an 'Other' reason, use the description if provided
+        if backend_reason == 'other' and description:
+            backend_reason = description[:100]  # Limit length to 100 chars
+        
+        # Check if user exists
+        user_to_report = User.query.get(user_id_to_report)
+        if not user_to_report:
+            return jsonify({
+                'status': 'error',
+                'message': 'User not found'
+            }), 404
+        
+        # Prevent users from reporting themselves
+        if str(current_user_id) == str(user_id_to_report):
+            return jsonify({
+                'status': 'error',
+                'message': 'Cannot report your own profile'
+            }), 400
+        
+        # Check if user already reported this user recently (within 24 hours)
+        recent_report = Report.query.filter_by(
+            reporter_id=current_user_id,
+            reported_user_id=user_id_to_report
+        ).filter(
+            Report.created_at >= datetime.utcnow() - timedelta(hours=24)
+        ).first()
+        
+        if recent_report:
+            return jsonify({
+                'status': 'error',
+                'message': 'You have already reported this user recently. Please wait 24 hours before reporting again.'
+            }), 429
+        
+        # Create new report
+        new_report = Report(
+            reporter_id=current_user_id,
+            reported_user_id=user_id_to_report,
+            reason=reason,
+            description=description[:1000] if description else None  # Limit description length
+        )
+        
+        db.session.add(new_report)
+        db.session.commit()
+        
+        # Log the report for admin review
+        current_app.logger.info(f'User {current_user_id} reported user {user_id_to_report} for {reason}')
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Report submitted successfully. Our team will review it shortly.',
+            'data': {
+                'report_id': new_report.id,
+                'submitted_at': new_report.created_at.isoformat()
+            }
+        }), 201
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error in report_user: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while submitting your report',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/check-saved-status/<int:user_id>', methods=['GET'])
+@jwt_required()
+@cross_origin()
+@limiter.limit("200 per hour")
+def check_saved_status(user_id):
+    """
+    Check if a user is saved by the current user
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        if not current_user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'Authentication required'
+            }), 401
+        
+        # Check if saved
+        saved = SavedUser.query.filter_by(
+            user_id=current_user_id,
+            saved_user_id=user_id
+        ).first()
+        
+        return jsonify({
+            'status': 'success',
+            'data': {
+                'is_saved': saved is not None,
+                'saved_at': saved.created_at.isoformat() if saved else None
+            }
+        }), 200
+    
+    except Exception as e:
+        current_app.logger.error(f'Error in check_saved_status: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while checking saved status',
             'error': str(e)
         }), 500

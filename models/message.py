@@ -12,6 +12,7 @@ class Message(Base):
     attachment = db.Column(db.String(255))
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    read_at = db.Column(db.DateTime, nullable=True)
     
     # Relationships with lazy loading for better performance
     sender = db.relationship('User', foreign_keys=[sender_id], backref=db.backref('messages_sent', lazy='dynamic'))

@@ -428,6 +428,12 @@ function submitForm(e) {
     function handleJsonResponse(data) {
         console.log('JSON Response:', data);
         if (data.success) {
+            // If we have HTML content, display it
+            if (data.html) {
+                document.querySelector('.otp-body').innerHTML = data.html;
+                return;
+            }
+            
             // If we have a redirect URL, try to redirect
             if (data.redirect_url) {
                 // Try to open the app
@@ -435,24 +441,26 @@ function submitForm(e) {
                 
                 // Fallback in case the app doesn't open
                 setTimeout(() => {
-                    // If we're still here, show a message
-                    document.body.innerHTML = `
-                        <div class="container mt-5">
-                            <div class="alert alert-info">
-                                <h4 class="alert-heading">Redirecting to App</h4>
-                                <p>If you are not automatically redirected, please <a href="${data.redirect_url}">click here</a> to open in the app.</p>
-                                <hr>
-                                <p class="mb-0">Or <a href="/">return to home</a>.</p>
+                    // If we're still here, show a message with the HTML content or default message
+                    document.querySelector('.otp-body').innerHTML = data.html || `
+                        <div class="alert alert-info text-center">
+                            <h4 class="alert-heading">Registration Successful!</h4>
+                            <p>Welcome to Fuetime! You're all set to start using our platform.</p>
+                            <div class="mt-3">
+                                <a href="/" class="btn btn-primary">Go to Dashboard</a>
                             </div>
-                        </div>
-                    `;
+                        </div>`;
                 }, 1000);
             } else {
-                // No redirect URL, just show success message
-                showToast(data.message || 'Verification successful!', 'success');
-                setTimeout(() => {
-                    window.location.href = '/';
-                }, 1500);
+                // No redirect URL, show success message with button
+                document.querySelector('.otp-body').innerHTML = `
+                    <div class="alert alert-success text-center">
+                        <h4 class="alert-heading">Success!</h4>
+                        <p>${data.message || 'Verification successful!'}</p>
+                        <div class="mt-3">
+                            <a href="/" class="btn btn-primary">Continue to Dashboard</a>
+                        </div>
+                    </div>`;
             }
         } else {
             showToast(data.message || 'Verification failed', 'danger');

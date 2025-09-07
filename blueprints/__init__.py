@@ -3,6 +3,7 @@ from .auth import bp as auth_bp
 from .profile import bp as profile_bp
 from .messages import bp as messages_bp
 from .test_route import bp as test_bp
+from .admin import admin_bp
 from routes.portfolio import portfolio_bp
 from routes.review import review_bp
 
@@ -14,7 +15,8 @@ blueprints = {
     'messages': (messages_bp, '/messages'),
     'portfolio': (portfolio_bp, '/portfolio'),
     'review': (review_bp, '/review'),
-    'test': (test_bp, '/test')
+    'test': (test_bp, '/test'),
+    'admin': (admin_bp, '/admin')
 }
 
 def init_app(app):
