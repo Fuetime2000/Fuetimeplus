@@ -11,6 +11,10 @@ import smtplib
 from itertools import groupby
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 from flask import (
     Flask, render_template, request, redirect, url_for, flash, jsonify, session, 
     send_from_directory, abort, Response, make_response, send_file, g, get_flashed_messages
@@ -48,7 +52,7 @@ from blueprints.api import api_bp
 # Configure CORS for API
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:3000", "http://localhost:5000", "https://yourdomain.com"],
+        "origins": ["https://fuetime.com"],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
         "supports_credentials": True
