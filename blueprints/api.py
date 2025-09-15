@@ -3185,7 +3185,8 @@ def forgot_password():
         token = serializer.dumps(user.email, salt='password-reset-salt')
         
         # Create reset link
-        reset_url = f"{current_app.config.get('FRONTEND_URL', '')}/reset-password?token={token}"
+        frontend_url = current_app.config.get('FRONTEND_URL', request.host_url.rstrip('/'))
+        reset_url = f"{frontend_url}/reset-password?token={token}"
         
         # Send email with reset link
         subject = "Password Reset Request"
@@ -4040,6 +4041,16 @@ def save_user():
                 'status': 'error',
                 'message': 'Authentication required'
             }), 401
+            
+        try:
+            # Convert to integer
+            current_user_id = int(current_user_id)
+        except (ValueError, TypeError) as e:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid user ID format',
+                'error': str(e)
+            }), 400
         
         data = request.get_json()
         if not data:
@@ -4063,16 +4074,27 @@ def save_user():
                 'message': 'action must be either "save" or "unsave"'
             }), 400
         
-        # Check if user exists
-        user_to_save = User.query.get(user_id_to_save)
-        if not user_to_save:
+        try:
+            # Convert to integer
+            user_id_to_save = int(user_id_to_save)
+            current_user_id = int(current_user_id)
+            
+            # Check if user exists
+            user_to_save = User.query.get(user_id_to_save)
+            if not user_to_save:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'User not found'
+                }), 404
+        except (ValueError, TypeError) as e:
             return jsonify({
                 'status': 'error',
-                'message': 'User not found'
-            }), 404
+                'message': 'Invalid user ID format',
+                'error': str(e)
+            }), 400
         
         # Prevent users from saving themselves
-        if str(current_user_id) == str(user_id_to_save):
+        if current_user_id == user_id_to_save:
             return jsonify({
                 'status': 'error',
                 'message': 'Cannot save your own profile'
@@ -4161,6 +4183,16 @@ def get_saved_users():
                 'status': 'error',
                 'message': 'Authentication required'
             }), 401
+            
+        try:
+            # Convert to integer
+            current_user_id = int(current_user_id)
+        except (ValueError, TypeError) as e:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid user ID format',
+                'error': str(e)
+            }), 400
         
         page = request.args.get('page', 1, type=int)
         per_page = min(request.args.get('per_page', 20, type=int), 100)
@@ -4243,6 +4275,16 @@ def report_user():
                 'status': 'error',
                 'message': 'Authentication required'
             }), 401
+            
+        try:
+            # Convert to integer
+            current_user_id = int(current_user_id)
+        except (ValueError, TypeError) as e:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid user ID format',
+                'error': str(e)
+            }), 400
         
         data = request.get_json()
         if not data:
@@ -4345,7 +4387,7 @@ def report_user():
             'error': str(e)
         }), 500
 
-@api_bp.route('/check-saved-status/<int:user_id>', methods=['GET'])
+@api_bp.route('/check-saved-status/<path:user_id>', methods=['GET'])
 @jwt_required()
 @cross_origin()
 @limiter.limit("200 per hour")
@@ -4360,6 +4402,27 @@ def check_saved_status(user_id):
                 'status': 'error',
                 'message': 'Authentication required'
             }), 401
+            
+        try:
+            # Convert to integer
+            current_user_id = int(current_user_id)
+        except (ValueError, TypeError) as e:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid user ID format',
+                'error': str(e)
+            }), 400
+            
+        try:
+            # Convert IDs to integers
+            current_user_id = int(current_user_id)
+            user_id = int(user_id)
+        except (ValueError, TypeError) as e:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid user ID format',
+                'error': str(e)
+            }), 400
         
         # Check if saved
         saved = SavedUser.query.filter_by(

@@ -71,6 +71,9 @@ class Config:
     RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '')
     RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
     
+    # Frontend URL for password reset links
+    FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5000')
+    
     # Rate limiting
     RATELIMIT_DEFAULT = '200 per day;50 per hour'
     

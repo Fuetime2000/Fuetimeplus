@@ -1,4 +1,5 @@
 import logging
+import requests
 from math import sin, cos, sqrt, atan2, radians, asin, degrees
 from logging.handlers import RotatingFileHandler
 import os
@@ -3265,6 +3266,47 @@ def admin_toggle_verify(user_id):
     return redirect(request.referrer or url_for('admin_users'))
 
 # Admin delete user route moved to the bottom of the file to avoid duplication
+
+# Reset Password Page
+@app.route('/reset-password', methods=['GET', 'POST'])
+def show_reset_password():
+    """Handle the reset password page and form submission."""
+    if request.method == 'POST':
+        token = request.form.get('token')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not token or not password or not confirm_password:
+            flash('All fields are required', 'error')
+            return redirect(request.url)
+            
+        if password != confirm_password:
+            flash('Passwords do not match', 'error')
+            return redirect(request.url)
+            
+        # Call the API endpoint to reset the password
+        response = requests.post(
+            f"{request.host_url}api/v1/auth/reset-password",
+            json={
+                'token': token,
+                'new_password': password
+            }
+        )
+        
+        data = response.json()
+        if response.status_code == 200 and data.get('status') == 'success':
+            flash('Your password has been reset successfully. Please login with your new password.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash(data.get('message', 'Failed to reset password. The link may have expired.'), 'error')
+            return redirect(url_for('forgot_password'))
+    
+    # Handle GET request
+    token = request.args.get('token')
+    if not token:
+        flash('Invalid or expired reset link', 'error')
+        return redirect(url_for('forgot_password'))
+    return render_template('reset_password.html', token=token)
 
 @app.errorhandler(500)
 def internal_error(error):
