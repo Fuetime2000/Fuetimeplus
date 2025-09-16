@@ -17,8 +17,16 @@ from flask_jwt_extended import (
     get_jwt_identity,
     get_jwt,
     verify_jwt_in_request,
-    get_jwt_identity
+    jwt_required
 )
+
+# For refresh token validation
+def verify_refresh_token():
+    from flask_jwt_extended import verify_jwt_in_request
+    return verify_jwt_in_request(refresh=True)
+
+# For backward compatibility
+jwt_refresh_token_required = jwt_required(refresh=True)
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import timedelta, datetime
@@ -565,6 +573,58 @@ def flutter_register():
         error_response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
         
         return error_response, 500
+
+@api_bp.route('/auth/refresh', methods=['POST'])
+@cross_origin()
+def refresh():
+    """
+    Refresh access token using refresh token
+    Expected JSON payload:
+    {
+        "refresh_token": "refresh_token_here"
+    }
+    """
+    try:
+        # Verify the refresh token
+        verify_refresh_token()
+        
+        # Get the identity of the refresh token
+        current_user = get_jwt_identity()
+        
+        # Get the user from database
+        user = User.query.get(current_user)
+        if not user:
+            return jsonify({
+                'status': 'error',
+                'message': 'User not found'
+            }), 404
+            
+        # Create new access token
+        access_token = create_access_token(
+            identity=str(user.id),
+            additional_claims={
+                'user_type': user.user_type,
+                'email': user.email,
+                'is_verified': user.email_verified,
+                'device_id': user.device_id
+            }
+        )
+        
+        return jsonify({
+            'status': 'success',
+            'access_token': access_token,
+            'token_type': 'bearer',
+            'expires_in': 15 * 60  # 15 minutes in seconds
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f'Token refresh error: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to refresh token',
+            'error': str(e)
+        }), 401
+
 
 @api_bp.route('/auth/login', methods=['POST'])
 @limiter.limit("5 per minute")  # Rate limiting
