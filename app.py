@@ -4128,110 +4128,33 @@ def verify_otp():
             print(f"[DEBUG] User logged in: {user.email}")
             
             # Check if this is a Flutter app request
-            is_flutter_request = is_ajax or request.args.get('source') == 'flutter' or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            is_flutter_request = request.args.get('source') == 'flutter' or request.headers.get('X-Request-Source') == 'flutter'
             print(f"[DEBUG] is_flutter_request: {is_flutter_request}")
             
             if is_flutter_request:
-                # Create a simple HTML page with JavaScript to handle the redirect
-                # This is more reliable for deep linking
+                # For Flutter app, return a clean JSON response with the redirect URL
                 redirect_url = f'fuetimeapp://auth/user/callback?token={auth_token}'
-                print(f"[DEBUG] Sending redirect URL: {redirect_url}")
+                print(f"[DEBUG] Sending Flutter redirect URL: {redirect_url}")
                 
-                response_html = f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Registration Successful - Fuetime</title>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <style>
-                        body {{
-                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                            display: flex;
-                            justify-content: center;
-                            align-items: center;
-                            min-height: 100vh;
-                            margin: 0;
-                            background-color: #f5f5f5;
-                            text-align: center;
-                        }}
-                        .success-container {{
-                            background: white;
-                            padding: 2rem;
-                            border-radius: 10px;
-                            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                            max-width: 500px;
-                            width: 90%;
-                        }}
-                        .success-icon {{
-                            font-size: 4rem;
-                            color: #28a745;
-                            margin-bottom: 1rem;
-                        }}
-                        .success-message {{
-                            font-size: 1.5rem;
-                            margin-bottom: 1.5rem;
-                            color: #333;
-                        }}
-                        .redirect-button {{
-                            display: inline-block;
-                            background-color: #007bff;
-                            color: white;
-                            padding: 12px 24px;
-                            border-radius: 5px;
-                            text-decoration: none;
-                            font-weight: 500;
-                            transition: background-color 0.3s;
-                            border: none;
-                            cursor: pointer;
-                            font-size: 1rem;
-                        }}
-                        .redirect-button:hover {{
-                            background-color: #0056b3;
-                        }}
-                        .redirect-note {{
-                            margin-top: 1.5rem;
-                            color: #6c757d;
-                            font-size: 0.9rem;
-                        }}
-                    </style>
-                    <script>
-                        // Try to redirect immediately
-                        window.location.href = '{redirect_url}';
-                        
-                        // Fallback in case the app doesn't open
-                        setTimeout(function() {{
-                            // If we're still here after 1 second, show the success message
-                            document.getElementById('success-content').style.display = 'block';
-                        }}, 1000);
-                    </script>
-                </head>
-                <body>
-                    <div id="success-content" style="display: none;">
-                        <div class="success-container">
-                            <div class="success-icon">✓</div>
-                            <h1 class="success-message">Registration Successful!</h1>
-                            <p>Welcome to Fuetime! You're all set to start using our platform.</p>
-                            <a href="{redirect_url}" class="redirect-button">Continue to App</a>
-                            <p class="redirect-note">If you're not redirected automatically, please click the button above.</p>
-                        </div>
-                    </div>
-                </body>
-                </html>
-                """
-                # For AJAX/Flutter requests, return JSON with redirect URL
-                if is_ajax or is_flutter_request:
-                    return jsonify({
-                        'success': True,
-                        'message': 'Registration successful! Welcome to Fuetime!',
-                        'redirect_url': f'fuetimeapp://auth/user/callback?token={auth_token}',
-                        'html': f'''
-                            <div class="alert alert-success">
-                                <h4>Registration Successful!</h4>
-                                <p>Welcome to Fuetime! You're all set to start using our platform.</p>
-                                <a href="/" class="btn btn-primary">Go to Dashboard</a>
-                            </div>
-                        '''
-                    })
+                response = jsonify({
+                    'success': True,
+                    'message': 'Registration successful! Welcome to Fuetime!',
+                    'redirect_url': redirect_url,
+                    'token': auth_token,
+                    'user_id': user.id,
+                    'email': user.email
+                })
+                response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                response.headers['Pragma'] = 'no-cache'
+                response.headers['Expires'] = '0'
+                return response
+            elif is_ajax:
+                # For regular AJAX requests (from web)
+                return jsonify({
+                    'success': True,
+                    'message': 'Registration successful! Welcome to Fuetime!',
+                    'redirect_url': url_for('main.index')
+                })
             
             # For non-AJAX web users
             flash('Registration successful! Welcome to Fuetime!', 'success')
