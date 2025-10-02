@@ -53,6 +53,7 @@ from models.Call import Call
 from models.message import Message
 from models.report import Report
 from models.saved_user import SavedUser
+from models.job_posting import JobPosting
 from extensions import db
 from datetime import datetime
 from flask import current_app
@@ -359,31 +360,58 @@ def flutter_register():
     current_app.logger.info(f"Flutter registration request headers: {dict(request.headers)}")
     current_app.logger.info(f"Flutter registration content type: {request.content_type}")
     
-    # Parse JSON data
     try:
-        data = request.get_json()
-        if not data:
-            current_app.logger.error("No JSON data received")
-            return jsonify({
-                'status': 'error',
-                'message': 'No data provided',
-                'code': 'NO_DATA'
-            }), 400
+        # Parse request data (both JSON and form data)
+        if request.content_type and 'application/json' in request.content_type:
+            # Handle JSON data
+            try:
+                data = request.get_json()
+                if not data:
+                    current_app.logger.error("No JSON data received")
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'No data provided',
+                        'code': 'NO_DATA'
+                    }), 400
+                current_app.logger.info(f"Flutter registration data (JSON): {json.dumps(data, indent=2)}")
+            except Exception as e:
+                current_app.logger.error(f"Error parsing JSON data: {str(e)}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid JSON data',
+                    'code': 'INVALID_JSON'
+                }), 400
+        else:
+            # Handle form data
+            data = request.form.to_dict()
+            current_app.logger.info(f"Flutter registration data (form): {data}")
             
-        current_app.logger.info(f"Flutter registration data: {json.dumps(data, indent=2)}")
+            # Handle file upload if present
+            if 'photo' in request.files and request.files['photo'].filename != '':
+                photo = request.files['photo']
+                if photo.filename:
+                    # Ensure upload folder exists
+                    os.makedirs(current_app.config['UPLOAD_FOLDER'], exist_ok=True)
+                    # Save the file and get the path
+                    filename = secure_filename(photo.filename)
+                    filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+                    photo.save(filepath)
+                    data['profile_image'] = filepath
     except Exception as e:
-        current_app.logger.error(f"Error parsing JSON data: {str(e)}")
+        current_app.logger.error(f"Error processing request data: {str(e)}")
+        current_app.logger.error(traceback.format_exc())  # Log full traceback
         return jsonify({
             'status': 'error',
-            'message': 'Invalid JSON data',
-            'code': 'INVALID_JSON'
+            'message': 'Error processing request data',
+            'code': 'REQUEST_PROCESSING_ERROR',
+            'details': str(e)
         }), 400
 
     # Validate required fields
     required_fields = [
         'email', 'password', 'full_name', 'phone', 
-        'date_of_birth', 'profession', 'experience',
-        'education', 'location', 'payment_type'
+        'date_of_birth', 'work', 'experience',
+        'education', 'current_location', 'payment_type'
     ]
     for field in required_fields:
         if field not in data:
@@ -442,24 +470,36 @@ def flutter_register():
         if 'profile_image' in data and data['profile_image']:
             profile_image_path = save_base64_image(data['profile_image'], None)
         
-        # Create new user with additional fields
-        user = User(
-            email=data['email'],
-            username=username,
-            full_name=data['full_name'],
-            phone=data['phone'],
-            user_type='worker',  # Force all Flutter registrations to be workers
-            date_of_birth=datetime.strptime(data['date_of_birth'], '%Y-%m-%d').date() if 'date_of_birth' in data else None,
-            profession=data.get('profession'),
-            experience=data.get('experience'),
-            education=data.get('education'),
-            current_location=data.get('location'),  # Map to current_location field
-            skills=', '.join(data.get('skills')) if isinstance(data.get('skills'), list) else data.get('skills'),
-            payment_type=data.get('payment_type', 'hourly'),
-            payment_charge=float(data.get('payment_charge', 0)) if data.get('payment_charge') else None,
-            photo=profile_image_path,  # This will be just the filename
-            active=True
-        )
+        # Prepare user data with proper field mapping
+        user_data = {
+            'email': data.get('email'),
+            'username': username,
+            'full_name': data.get('full_name'),
+            'phone': data.get('phone'),
+            'user_type': 'worker',  # Force all Flutter registrations to be workers
+            'work': data.get('work'),  # Map to 'work' field instead of 'profession'
+            'experience': data.get('experience'),
+            'education': data.get('education'),
+            'current_location': data.get('current_location') or data.get('location'),
+            'live_location': data.get('live_location'),
+            'skills': ', '.join(data.get('skills', [])) if isinstance(data.get('skills'), list) else data.get('skills', ''),
+            'payment_type': data.get('payment_type', 'hourly'),
+            'payment_charge': float(data.get('payment_charge', 0)) if data.get('payment_charge') else None,
+            'photo': profile_image_path,  # This will be just the filename
+            'active': True
+        }
+        
+        # Handle date of birth
+        if 'date_of_birth' in data and data['date_of_birth']:
+            try:
+                user_data['date_of_birth'] = datetime.strptime(data['date_of_birth'], '%Y-%m-%d').date()
+            except (ValueError, TypeError) as e:
+                current_app.logger.warning(f"Invalid date format for date_of_birth: {data['date_of_birth']}")
+                # Set a default date or handle the error as needed
+                user_data['date_of_birth'] = None
+        
+        # Create new user with the prepared data
+        user = User(**user_data)
         user.set_password(data['password'])
         
         db.session.add(user)
@@ -2312,6 +2352,496 @@ def update_user_rating(user_id):
         raise
 
 # ==============================================
+# Job Posting Endpoints
+# ==============================================
+
+@api_bp.route('/jobs', methods=['POST'])
+@jwt_required()
+def create_job_posting():
+    """
+    Create a new job posting
+    Expected JSON payload:
+    {
+        "title": "Website Development",
+        "description": "Need a professional website for my business",
+        "category": "web_development",
+        "budget": 1000.00,
+        "budget_type": "fixed",  # or "hourly"
+        "location": "New York, NY",
+        "address": "123 Business St, New York, NY 10001",
+        "duration": "2 weeks",
+        "skills_required": ["HTML", "CSS", "JavaScript"],
+        "contact_phone": "+1234567890",
+        "contact_email": "client@example.com"
+    }
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Log incoming request details
+        current_app.logger.info(f"[JOB_POST] Incoming request headers: {dict(request.headers)}")
+        current_app.logger.info(f"[JOB_POST] Request content type: {request.content_type}")
+        
+        # Get request data based on content type
+        if 'application/json' in request.content_type:
+            try:
+                # Try to parse JSON data
+                data = request.get_json(force=True, silent=True)
+                if data is None:
+                    # If get_json returns None, try to parse manually
+                    raw_data = request.get_data(as_text=True)
+                    if raw_data:
+                        data = json.loads(raw_data)
+                current_app.logger.info(f"[JOB_POST] Received JSON data: {data}")
+            except Exception as e:
+                current_app.logger.error(f"[JOB_POST] Error parsing JSON data: {str(e)}")
+                data = {}
+        else:
+            data = request.form.to_dict()
+            current_app.logger.info(f"[JOB_POST] Received form data: {data}")
+        
+        # If no data was found, try to parse it manually
+        if not data and request.method == 'POST':
+            try:
+                data = json.loads(request.get_data(as_text=True))
+                current_app.logger.info(f"[JOB_POST] Manually parsed JSON data: {data}")
+            except Exception as e:
+                current_app.logger.error(f"[JOB_POST] Error parsing request data: {str(e)}")
+                data = {}
+        
+        # Check if data contains a 'job' field with JSON string
+        if data and 'job' in data and isinstance(data['job'], str):
+            try:
+                data = json.loads(data['job'])
+                current_app.logger.info(f"[JOB_POST] Parsed job data from 'job' field: {data}")
+            except json.JSONDecodeError as e:
+                current_app.logger.error(f"[JOB_POST] Error parsing 'job' field as JSON: {str(e)}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid JSON data in job field'
+                }), 400
+        
+        current_app.logger.info(f"[JOB_POST] Final data being processed: {data}")
+        
+        # If still no data, return error
+        if not data:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid request data. Please send valid JSON data with the required fields.'
+            }), 400
+        
+        # Validate required fields
+        required_fields = ['title', 'description', 'category', 'budget', 'budget_type', 'location']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Missing required field: {field}'
+                }), 400
+        
+        # Get coordinates from location
+        coordinates = get_coordinates(data['location'])
+        if not coordinates:
+            return jsonify({
+                'status': 'error',
+                'message': 'Could not determine location coordinates. Please provide a valid location.'
+            }), 400
+            
+        latitude, longitude = coordinates
+        
+        # Handle image uploads
+        image_urls = []
+        if request.files:
+            current_app.logger.info(f"[JOB_POST] Processing {len(request.files)} file(s)")
+            
+            # Ensure upload directory exists
+            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'job_images')
+            os.makedirs(upload_dir, exist_ok=True)
+            
+            # Process each uploaded file
+            for file_key in request.files:
+                file = request.files[file_key]
+                
+                # Skip if no filename
+                if not file or not file.filename or file.filename == '':
+                    current_app.logger.warning(f"[JOB_POST] Skipping empty file in field: {file_key}")
+                    continue
+                
+                current_app.logger.info(f"[JOB_POST] Processing file: {file.filename} from field: {file_key}")
+                
+                # Validate file size by reading the stream
+                file.seek(0, 2)  # Seek to end
+                file_size = file.tell()
+                file.seek(0)  # Reset to beginning
+                
+                if file_size <= 0:
+                    current_app.logger.warning(f"[JOB_POST] Empty file detected: {file.filename}")
+                    continue
+                
+                current_app.logger.info(f"[JOB_POST] File size: {file_size} bytes")
+                
+                # Validate file type by checking file signature (magic bytes)
+                file_header = file.read(10)
+                file.seek(0)  # Reset to beginning
+                
+                # Check for common image file signatures
+                is_valid_image = (
+                    file_header.startswith(b'\x89PNG') or  # PNG
+                    file_header.startswith(b'\xff\xd8\xff') or  # JPEG
+                    file_header.startswith(b'GIF87a') or  # GIF87a
+                    file_header.startswith(b'GIF89a') or  # GIF89a
+                    file_header.startswith(b'RIFF') and b'WEBP' in file_header  # WebP
+                )
+                
+                if not is_valid_image:
+                    current_app.logger.warning(f"[JOB_POST] Invalid image file signature for: {file.filename}")
+                    continue
+                
+                # Generate unique filename
+                filename = secure_filename(file.filename)
+                ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+                
+                # Determine extension from file signature if not present or incorrect
+                if not ext or ext not in {'png', 'jpg', 'jpeg', 'gif', 'webp'}:
+                    if file_header.startswith(b'\x89PNG'):
+                        ext = 'png'
+                    elif file_header.startswith(b'\xff\xd8\xff'):
+                        ext = 'jpg'
+                    elif file_header.startswith(b'GIF'):
+                        ext = 'gif'
+                    elif b'WEBP' in file_header:
+                        ext = 'webp'
+                    else:
+                        ext = 'jpg'  # Default fallback
+                
+                new_filename = f"{uuid.uuid4()}.{ext}"
+                file_path = os.path.join(upload_dir, new_filename)
+                
+                # Save file
+                file.save(file_path)
+                current_app.logger.info(f"[JOB_POST] Saved image: {new_filename}")
+                
+                # Build full URL for the image
+                # Using request.host_url to get the full base URL (e.g., http://192.168.1.100:5000/)
+                base_url = request.host_url.rstrip('/')
+                image_url = f"{base_url}/static/uploads/job_images/{new_filename}"
+                image_urls.append(image_url)
+                current_app.logger.info(f"[JOB_POST] Generated image URL: {image_url}")
+        
+        current_app.logger.info(f"[JOB_POST] Total images saved: {len(image_urls)}")
+        current_app.logger.info(f"[JOB_POST] Image URLs to save: {image_urls}")
+        
+        # Create new job posting
+        job = JobPosting(
+            title=data['title'],
+            description=data['description'],
+            category=data['category'],
+            budget=float(data['budget']),
+            budget_type=data['budget_type'],
+            location=data['location'],
+            address=data.get('address', ''),
+            latitude=latitude,
+            longitude=longitude,
+            duration=data.get('duration', ''),
+            skills_required=data.get('skills_required', []),
+            contact_phone=data.get('contact_phone', ''),
+            contact_email=data.get('contact_email', ''),
+            client_id=current_user_id,
+            status='open',
+            images=image_urls
+        )
+        
+        db.session.add(job)
+        db.session.commit()
+        
+        # Refresh to get the saved data
+        db.session.refresh(job)
+        current_app.logger.info(f"[JOB_POST] Job created with ID: {job.id}")
+        current_app.logger.info(f"[JOB_POST] Job images field after save: {job.images}")
+        
+        job_dict = job.to_dict()
+        current_app.logger.info(f"[JOB_POST] Job dict images: {job_dict.get('images')}")
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Job posted successfully',
+            'job': job_dict
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error creating job posting: {str(e)}', exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while creating the job posting',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/jobs', methods=['GET'])
+def get_job_postings():
+    """
+    Get all job postings with filtering and pagination
+    
+    Query Parameters:
+    - page: Page number (default: 1)
+    - per_page: Items per page (default: 20, max: 100)
+    - category: Filter by category
+    - budget_min: Minimum budget
+    - budget_max: Maximum budget
+    - location: Filter by location (within 50km if coordinates available)
+    - search: Search in title or description
+    - status: Filter by status (open, in_progress, completed, cancelled)
+    - sort: Sort by (newest, budget_high, budget_low)
+    """
+    try:
+        # Pagination
+        page = request.args.get('page', 1, type=int)
+        per_page = min(request.args.get('per_page', 20, type=int), 100)
+        
+        # Base query
+        query = JobPosting.query
+        
+        # Apply filters
+        if 'category' in request.args:
+            query = query.filter(JobPosting.category == request.args['category'])
+            
+        if 'budget_min' in request.args:
+            query = query.filter(JobPosting.budget >= float(request.args['budget_min']))
+            
+        if 'budget_max' in request.args:
+            query = query.filter(JobPosting.budget <= float(request.args['budget_max']))
+            
+        if 'status' in request.args:
+            query = query.filter(JobPosting.status == request.args['status'])
+        else:
+            # Default to only showing open jobs
+            query = query.filter(JobPosting.status == 'open')
+            
+        if 'search' in request.args:
+            search = f"%{request.args['search']}%"
+            query = query.filter(
+                or_(
+                    JobPosting.title.ilike(search),
+                    JobPosting.description.ilike(search)
+                )
+            )
+            
+        # Location-based filtering
+        if 'location' in request.args:
+            location = request.args['location']
+            coordinates = get_coordinates(location)
+            if coordinates:
+                lat, lng = coordinates
+                # This is a simplified approach - in production, you'd want to use PostGIS for spatial queries
+                # For now, we'll just filter by location text match
+                query = query.filter(JobPosting.location.ilike(f'%{location}%'))
+        
+        # Sorting
+        sort = request.args.get('sort', 'newest')
+        if sort == 'budget_high':
+            query = query.order_by(JobPosting.budget.desc())
+        elif sort == 'budget_low':
+            query = query.order_by(JobPosting.budget.asc())
+        else:  # newest first by default
+            query = query.order_by(JobPosting.created_at.desc())
+        
+        # Execute query with pagination
+        paginated_jobs = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # Prepare response
+        jobs = [job.to_dict() for job in paginated_jobs.items]
+        
+        return jsonify({
+            'status': 'success',
+            'data': jobs,
+            'pagination': {
+                'total': paginated_jobs.total,
+                'pages': paginated_jobs.pages,
+                'current_page': paginated_jobs.page,
+                'per_page': paginated_jobs.per_page,
+                'has_next': paginated_jobs.has_next,
+                'has_prev': paginated_jobs.has_prev
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f'Error fetching job postings: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while fetching job postings',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/jobs/<int:job_id>', methods=['GET'])
+def get_job_posting(job_id):
+    """Get details of a specific job posting"""
+    try:
+        job = JobPosting.query.get_or_404(job_id)
+        return jsonify({
+            'status': 'success',
+            'data': job.to_dict()
+        })
+    except Exception as e:
+        current_app.logger.error(f'Error fetching job posting {job_id}: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while fetching the job posting',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/jobs/<int:job_id>', methods=['PUT'])
+@jwt_required()
+def update_job_posting(job_id):
+    """
+    Update a job posting
+    Only the job poster or admin can update the job
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        job = JobPosting.query.get_or_404(job_id)
+        
+        # Check permissions
+        if job.client_id != current_user_id:
+            # Check if user is admin
+            user = User.query.get(current_user_id)
+            if not user or not user.is_admin:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'You do not have permission to update this job posting'
+                }), 403
+        
+        data = request.get_json()
+        
+        # Update fields if provided
+        for field in ['title', 'description', 'category', 'budget', 'budget_type', 
+                     'location', 'address', 'duration', 'status']:
+            if field in data:
+                setattr(job, field, data[field])
+        
+        # Update skills if provided
+        if 'skills_required' in data:
+            job.skills_required = data['skills_required']
+            
+        # Update contact info if provided
+        if 'contact_phone' in data:
+            job.contact_phone = data['contact_phone']
+        if 'contact_email' in data:
+            job.contact_email = data['contact_email']
+        
+        # If location changed, update coordinates
+        if 'location' in data:
+            coordinates = get_coordinates(data['location'])
+            if coordinates:
+                job.latitude, job.longitude = coordinates
+        
+        job.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Job posting updated successfully',
+            'data': job.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error updating job posting {job_id}: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while updating the job posting',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/jobs/<int:job_id>', methods=['DELETE'])
+@jwt_required()
+def delete_job_posting(job_id):
+    """
+    Delete a job posting
+    Only the job poster or admin can delete the job
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        job = JobPosting.query.get_or_404(job_id)
+        
+        # Check permissions
+        if job.client_id != current_user_id:
+            # Check if user is admin
+            user = User.query.get(current_user_id)
+            if not user or not user.is_admin:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'You do not have permission to delete this job posting'
+                }), 403
+        
+        # Soft delete by changing status
+        job.status = 'cancelled'
+        job.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Job posting deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error deleting job posting {job_id}: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while deleting the job posting',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/jobs/<int:job_id>/apply', methods=['POST'])
+@jwt_required()
+def apply_for_job(job_id):
+    """
+    Apply for a job posting
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        job = JobPosting.query.get_or_404(job_id)
+        
+        # Check if job is open
+        if job.status != 'open':
+            return jsonify({
+                'status': 'error',
+                'message': 'This job is no longer accepting applications'
+            }), 400
+        
+        # Check if user is the job poster
+        if job.client_id == current_user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'You cannot apply to your own job posting'
+            }), 400
+        
+        # In a real app, you would create an application record here
+        # For now, we'll just return success
+        
+        # Send notification to job poster
+        # notification_service.send_job_application_notification(
+        #     job.client_id,
+        #     f'New application for your job: {job.title}',
+        #     f'{current_user.full_name} has applied to your job posting.',
+        #     {'type': 'job_application', 'job_id': job.id, 'applicant_id': current_user_id}
+        # )
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Application submitted successfully',
+            'job': job.to_dict()
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f'Error applying for job {job_id}: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while processing your application',
+            'error': str(e)
+        }), 500
+
+# ==============================================
 # Account Management Endpoints
 # ==============================================
 
@@ -3615,7 +4145,6 @@ def serve_profile_pic(filename):
         
     except Exception as e:
         current_app.logger.error(f"Error serving profile picture {filename}: {str(e)}", exc_info=True)
-        return send_from_directory('static', 'img/default-avatar.png')
         return send_from_directory('static', 'img/default-avatar.png')
 
 @api_bp.route('/call', methods=['POST'])

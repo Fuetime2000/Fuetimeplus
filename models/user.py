@@ -51,44 +51,46 @@ class User(Base, UserMixin):
     verified = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
     email_otp = db.Column(db.String(6))
     phone_otp = db.Column(db.String(6))
-    otp_expiry = db.Column(db.DateTime)
+    otp_expiry = db.Column(db.DateTime, nullable=True)  # When the OTP will expire
     email_notifications = db.Column(db.Boolean, default=True)
     message_notifications = db.Column(db.Boolean, default=True)
     review_notifications = db.Column(db.Boolean, default=True)
     
     # Relationships
-    portfolio = db.relationship('Portfolio', back_populates='user', uselist=False, lazy=True, cascade='all, delete-orphan')
+    # Portfolio relationships
+    portfolios = db.relationship('Portfolio', back_populates='user', lazy=True)
+    portfolio_projects = db.relationship('PortfolioProject', back_populates='user', lazy='dynamic')
+    projects = db.relationship('Project', back_populates='user', lazy='dynamic')
+    messages_sent = db.relationship('Message', foreign_keys='Message.sender_id', back_populates='sender', lazy='dynamic')
+    messages_received = db.relationship('Message', foreign_keys='Message.receiver_id', back_populates='receiver', lazy='dynamic')
+    # Contact request relationships (backrefs are defined in ContactRequest model):
+    # - contact_requests_sent: contact requests sent by this user
+    # - contact_requests_received: contact requests received by this user
+    transactions = db.relationship('Transaction', back_populates='user', lazy='dynamic')
+    reviews_given = db.relationship('Review', foreign_keys='Review.reviewer_id', back_populates='reviewer', lazy='dynamic')
+    reviews_received = db.relationship('Review', foreign_keys='Review.worker_id', back_populates='worker', lazy='dynamic')
+    # Call relationships (backrefs are defined in Call model):
+    # - outgoing_calls: calls made by this user (caller)
+    # - incoming_calls: calls received by this user (callee)
+    # Report relationships (backrefs are defined in Report model):
+    # - reports_made: reports submitted by this user
+    # - reports_received: reports filed against this user
+    # Saved users relationships (backrefs are defined in SavedUser model):
+    # - saved_users: users saved by this user
+    # - saved_by_users: users who saved this user
     
-    # Project relationships
-    projects = db.relationship('Project', 
-                             back_populates='user',
-                             lazy='dynamic',
-                             overlaps='portfolio_projects')
-    
-    # Portfolio projects relationship (from PortfolioProject model)
-    portfolio_projects = db.relationship('PortfolioProject',
-                                       back_populates='user',
-                                       lazy='dynamic',
-                                       overlaps='projects')
-    
-    # Review relationships
-    reviews_received = db.relationship('models.review.Review',
-        foreign_keys='models.review.Review.worker_id',
-        back_populates='worker',
-        lazy='dynamic',
-        overlaps='reviews_worker'
-    )
-    reviews_given = db.relationship('models.review.Review',
-        foreign_keys='models.review.Review.reviewer_id',
-        back_populates='reviewer',
-        lazy='dynamic',
-        overlaps='reviews_reviewer'
-    )
+    # Job posting relationships (backrefs are defined in JobPosting model):
+    # - job_postings: jobs posted by this user (client)
+    # - assigned_jobs: jobs assigned to this user (worker)
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
-    
+        return True
+        
     def check_password(self, password):
+        """Check if the provided password matches the stored hash"""
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
     
     def get_id(self):
@@ -96,6 +98,20 @@ class User(Base, UserMixin):
     
     def is_active(self):
         return self.active
+        
+    def get_profile_pic_url(self):
+        """
+        Returns the URL for the user's profile picture.
+        If no profile picture is set, returns a default avatar URL.
+        """
+        if self.photo:
+            # Check if the photo is already a full URL
+            if self.photo.startswith(('http://', 'https://')):
+                return self.photo
+            # Otherwise, construct the URL using the configured upload folder
+            return f"/profile_pic/{self.photo}"
+        # Return a default avatar URL if no photo is set
+        return "/static/images/default-avatar.png"
     
     @property
     def is_authenticated(self):

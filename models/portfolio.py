@@ -13,7 +13,7 @@ class Portfolio(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    user = db.relationship('User', back_populates='portfolio')
+    user = db.relationship('User', back_populates='portfolios')
     projects = db.relationship('PortfolioProject', backref='portfolio', lazy=True, cascade='all, delete-orphan')
     skills = db.relationship('PortfolioSkill', backref='portfolio', lazy=True, cascade='all, delete-orphan')
     ratings = db.relationship('PortfolioRating', backref='portfolio', lazy=True, cascade='all, delete-orphan')

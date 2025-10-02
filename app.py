@@ -26,19 +26,46 @@ from io import BytesIO
 from werkzeug.utils import secure_filename
 from blueprints.main import bp as main_bp
 from flask import jsonify, request
-from werkzeug.security import generate_password_hash
 from datetime import timedelta
 from flask_login import UserMixin, login_user, login_required, logout_user, current_user
 from functools import wraps
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, get_jwt_identity, jwt_required, get_jwt
-from flask_socketio import emit, join_room, leave_room
-from flask_babel import gettext as _
+from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_login import current_user, login_required
 
+# Initialize SocketIO first
+socketio = SocketIO()
 
-# Import models
-from models.user import User
-from models.transaction import Transaction
+# WebSocket route for user presence
+@socketio.on('connect')
+@login_required
+def handle_connect():
+    """Handle WebSocket connection."""
+    if current_user.is_authenticated:
+        join_room(f'user_{current_user.id}')
+        emit('status', {'user_id': current_user.id, 'status': 'online'}, room=f'user_{current_user.id}')
+        print(f"User {current_user.id} connected to WebSocket")
+    else:
+        return False  # Reject the connection
+
+@socketio.on('disconnect')
+@login_required
+def handle_disconnect():
+    """Handle WebSocket disconnection."""
+    if current_user.is_authenticated:
+        leave_room(f'user_{current_user.id}')
+        emit('status', {'user_id': current_user.id, 'status': 'offline'}, room=f'user_{current_user.id}')
+        print(f"User {current_user.id} disconnected from WebSocket")
+
+# User presence event handler
+@socketio.on('user_presence')
+@login_required
+def handle_user_presence(data):
+    """Handle user presence updates."""
+    user_id = current_user.id
+    status = data.get('status', 'online')
+    emit('user_presence', {'user_id': user_id, 'status': status}, room=f'user_{user_id}')
 
 # Import Socket.IO event handlers
 import events
@@ -76,12 +103,27 @@ app.register_blueprint(search_bp, url_prefix='')
 app.config['WTF_CSRF_ENABLED'] = False
 app.config['WTF_CSRF_CHECK_DEFAULT'] = False
 
-# Import SocketIO
-try:
-    from extensions import socketio
-except ImportError:
-    print("Error: Could not import socketio from extensions")
-    socketio = None
+# Initialize SocketIO with the app
+socketio.init_app(app, 
+                 cors_allowed_origins="*",
+                 async_mode='gevent',
+                 logger=True,
+                 engineio_logger=False)
+
+# Register Socket.IO error handler
+@socketio.on_error_default
+def default_error_handler(e):
+    print(f'Socket.IO error: {str(e)}')
+    
+    # Handle cleanup on application shutdown
+    import atexit
+    
+    def shutdown_socketio():
+        if socketio:
+            print("Shutting down Socket.IO...")
+            socketio.stop()
+    
+    atexit.register(shutdown_socketio)
 
 def init_socketio_handlers():
     """Initialize and register all Socket.IO event handlers."""
@@ -942,6 +984,23 @@ def create_razorpay_client():
 
 # Initialize the client
 razorpay_client = create_razorpay_client()
+
+# WebSocket route for user presence
+@socketio.on('connect', namespace='/ws/user/<int:user_id>')
+@login_required
+def handle_user_connect(user_id):
+    if current_user.id == user_id:
+        join_room(f'user_{user_id}')
+        emit('status', {'user_id': user_id, 'status': 'online'}, room=f'user_{user_id}')
+        print(f"User {user_id} connected to WebSocket")
+    else:
+        return False  # Reject the connection
+
+@socketio.on('disconnect', namespace='/ws/user/<int:user_id>')
+def handle_user_disconnect(user_id):
+    leave_room(f'user_{user_id}')
+    emit('status', {'user_id': user_id, 'status': 'offline'}, room=f'user_{user_id}')
+    print(f"User {user_id} disconnected from WebSocket")
 
 # JWT Configuration
 app.config['JWT_SECRET_KEY'] = 'your-256-bit-secret'  # Change this to a secure secret key
@@ -4201,7 +4260,7 @@ def verify_business_otp():
             return redirect(url_for('register_client'))
 
         # Check if OTP has expired (10 minutes)
-        if datetime.utcnow() > user.otp_expiry:
+        if not user.otp_expiry or datetime.utcnow() > user.otp_expiry:
             db.session.delete(user)
             db.session.commit()
             session.pop('pending_verification_id', None)
@@ -4917,6 +4976,7 @@ if __name__ == '__main__':
         # Create all tables
         with app.app_context():
             db.create_all()
+            
             # Test database connection
             db.session.execute(text('SELECT 1'))
             db.session.commit()

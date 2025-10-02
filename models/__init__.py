@@ -13,6 +13,7 @@ from .behavior_tracking import UserBehavior, FraudAlert
 from .project import Project, Technology
 from .help_request import HelpRequest
 from .user_interaction import UserInteraction
+from .job_posting import JobPosting
 
 # Create a dictionary of all models for easy access
 models = {
@@ -34,7 +35,8 @@ models = {
     'Technology': Technology,
     'PortfolioRating': PortfolioRating,
     'HelpRequest': HelpRequest,
-    'UserInteraction': UserInteraction
+    'UserInteraction': UserInteraction,
+    'JobPosting': JobPosting
 }
 
 # Make all models available when importing from models

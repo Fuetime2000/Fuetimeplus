@@ -19,7 +19,7 @@ class Transaction(Base):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    user = db.relationship('User', backref=db.backref('user_transactions', lazy='dynamic'))
+    user = db.relationship('User', back_populates='transactions')
     
     def __init__(self, user_id=None, amount=None, description=None, transaction_type='debit', status='completed', reference_id=None, metadata=None):
         if user_id is not None:
