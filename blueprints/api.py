@@ -54,6 +54,7 @@ from models.message import Message
 from models.report import Report
 from models.saved_user import SavedUser
 from models.job_posting import JobPosting
+from models.job_request import JobRequest
 from extensions import db
 from datetime import datetime
 from flask import current_app
@@ -62,7 +63,8 @@ from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 import traceback
 import uuid
 
-api_bp = Blueprint('api', __name__, url_prefix='/v1')
+# The URL prefix is set in app.py when registering the blueprint
+api_bp = Blueprint('api', __name__)
 # Explicitly disable CSRF protection for all API endpoints
 api_bp.config = {}
 api_bp.config['WTF_CSRF_ENABLED'] = False
@@ -623,16 +625,41 @@ def refresh():
     {
         "refresh_token": "refresh_token_here"
     }
+    Or refresh token in Authorization header as: Bearer <refresh_token>
     """
     try:
-        # Verify the refresh token
-        verify_refresh_token()
+        # Try to get refresh token from request body first
+        data = request.get_json()
+        refresh_token = data.get('refresh_token') if data else None
         
-        # Get the identity of the refresh token
-        current_user = get_jwt_identity()
+        if refresh_token:
+            # Manually verify the refresh token from body
+            try:
+                from flask_jwt_extended import decode_token
+                decoded = decode_token(refresh_token)
+                
+                # Check if it's a refresh token
+                if decoded.get('type') != 'refresh':
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Invalid token type. Expected refresh token.'
+                    }), 401
+                
+                user_id = decoded.get('sub')
+            except Exception as token_error:
+                current_app.logger.error(f'Invalid refresh token: {str(token_error)}')
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid or expired refresh token',
+                    'error': str(token_error)
+                }), 401
+        else:
+            # Fall back to header/cookie method
+            verify_refresh_token()
+            user_id = get_jwt_identity()
         
         # Get the user from database
-        user = User.query.get(current_user)
+        user = User.query.get(user_id)
         if not user:
             return jsonify({
                 'status': 'error',
@@ -2792,6 +2819,39 @@ def delete_job_posting(job_id):
             'error': str(e)
         }), 500
 
+@api_bp.route('/jobs/<int:job_id>/requests', methods=['GET'])
+@jwt_required()
+def get_job_requests(job_id):
+    """
+    Get all job requests for a specific job posting
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        job = JobPosting.query.get_or_404(job_id)
+        
+        # Only the job poster can view requests
+        if job.client_id != current_user_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'You are not authorized to view requests for this job'
+            }), 403
+        
+        # Get all requests for this job
+        requests = JobRequest.query.filter_by(job_id=job_id).order_by(JobRequest.created_at.desc()).all()
+        
+        return jsonify({
+            'status': 'success',
+            'requests': [req.to_dict() for req in requests]
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f'Error fetching job requests for job {job_id}: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while fetching job requests',
+            'error': str(e)
+        }), 500
+
 @api_bp.route('/jobs/<int:job_id>/apply', methods=['POST'])
 @jwt_required()
 def apply_for_job(job_id):
@@ -2816,8 +2876,31 @@ def apply_for_job(job_id):
                 'message': 'You cannot apply to your own job posting'
             }), 400
         
-        # In a real app, you would create an application record here
-        # For now, we'll just return success
+        # Check if user has already applied
+        existing_request = JobRequest.query.filter_by(
+            job_id=job_id,
+            worker_id=current_user_id
+        ).first()
+        
+        if existing_request:
+            return jsonify({
+                'status': 'error',
+                'message': 'You have already applied to this job',
+                'request': existing_request.to_dict()
+            }), 400
+        
+        # Create job request
+        data = request.get_json() or {}
+        job_request = JobRequest(
+            job_id=job_id,
+            worker_id=current_user_id,
+            client_id=job.client_id,
+            status='pending',
+            message=data.get('message', '')
+        )
+        
+        db.session.add(job_request)
+        db.session.commit()
         
         # Send notification to job poster
         # notification_service.send_job_application_notification(
@@ -2830,7 +2913,8 @@ def apply_for_job(job_id):
         return jsonify({
             'status': 'success',
             'message': 'Application submitted successfully',
-            'job': job.to_dict()
+            'job': job.to_dict(),
+            'request': job_request.to_dict()
         })
         
     except Exception as e:
@@ -2838,6 +2922,250 @@ def apply_for_job(job_id):
         return jsonify({
             'status': 'error',
             'message': 'An error occurred while processing your application',
+            'error': str(e)
+        }), 500
+
+def _update_job_request_status(request_id, data, current_user_id):
+    """
+    Internal function to update job request status
+    
+    Args:
+        request_id: ID of the job request
+        data: Dictionary containing status and optional rejection_reason
+        current_user_id: ID of the user making the request
+        
+    Returns:
+        Tuple of (response_data, status_code)
+    """
+    if not data or 'status' not in data:
+        return {
+            'success': False,
+            'message': 'Missing required field: status'
+        }, 400
+        
+    new_status = data['status'].lower()
+    
+    # Validate status
+    valid_statuses = ['accepted', 'rejected', 'cancelled']
+    if new_status not in valid_statuses:
+        return {
+            'success': False,
+            'message': f'Invalid status. Must be one of: {valid_statuses}'
+        }, 400
+        
+    # Check if rejection reason is provided when rejecting
+    if new_status == 'rejected' and not data.get('rejection_reason'):
+        return {
+            'success': False,
+            'message': 'Rejection reason is required when rejecting a request'
+        }, 400
+        
+    # Get the job request
+    job_request = JobRequest.query.get(request_id)
+    if not job_request:
+        return {
+            'success': False,
+            'message': f'Job request with ID {request_id} not found'
+        }, 404
+    
+    # Ensure current_user_id is an integer for comparison
+    current_user_id = int(current_user_id) if isinstance(current_user_id, str) else current_user_id
+    
+    # Debug logging
+    current_app.logger.info(
+        f'Job request {request_id}: worker_id={job_request.worker_id} (type: {type(job_request.worker_id).__name__}), '
+        f'client_id={job_request.client_id} (type: {type(job_request.client_id).__name__}), '
+        f'status={job_request.status}, '
+        f'current_user={current_user_id} (type: {type(current_user_id).__name__}), '
+        f'new_status={new_status}'
+    )
+    
+    # Check permissions
+    if new_status == 'cancelled':
+        # Only the worker who created the request can cancel it
+        if job_request.worker_id != current_user_id:
+            current_app.logger.warning(
+                f'Authorization failed: User {current_user_id} tried to cancel request {request_id} '
+                f'but worker_id is {job_request.worker_id}'
+            )
+            return {
+                'success': False,
+                'message': 'You are not authorized to cancel this request. Only the worker who applied can cancel.'
+            }, 403
+    else:
+        # Only the client who posted the job can accept/reject requests
+        if job_request.client_id != current_user_id:
+            current_app.logger.warning(
+                f'Authorization failed: User {current_user_id} tried to {new_status} request {request_id} '
+                f'but client_id is {job_request.client_id}'
+            )
+            return {
+                'success': False,
+                'message': f'You are not authorized to {new_status} this request. Only the job poster can accept/reject applications.'
+            }, 403
+    
+    # Update the status
+    job_request.status = new_status
+    
+    # Update rejection reason if provided
+    if new_status == 'rejected' and 'rejection_reason' in data:
+        job_request.rejection_reason = data['rejection_reason']
+    
+    # If request is accepted, mark the job as in_progress
+    if new_status == 'accepted':
+        job_request.job.status = 'in_progress'
+        job_request.job.assigned_to = job_request.worker_id
+    
+    db.session.commit()
+    
+    return {
+        'success': True,
+        'message': 'Job request updated successfully',
+        'request': job_request.to_dict()
+    }, 200
+
+@api_bp.route('/job-requests/sent', methods=['GET'])
+@jwt_required()
+def get_sent_job_requests():
+    """
+    Get all job requests sent by the current user (worker applications)
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Get all requests where the current user is the worker
+        requests = JobRequest.query.filter_by(worker_id=current_user_id).order_by(JobRequest.created_at.desc()).all()
+        
+        # Include job details in the response
+        result = []
+        for req in requests:
+            req_dict = req.to_dict()
+            if req.job:
+                req_dict['job'] = req.job.to_dict()
+            result.append(req_dict)
+        
+        return jsonify({
+            'status': 'success',
+            'requests': result
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f'Error fetching sent job requests: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while fetching job requests',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/job-requests/received', methods=['GET'])
+@jwt_required()
+def get_received_job_requests():
+    """
+    Get all job requests received by the current user (client's job postings)
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Get all requests where the current user is the client
+        requests = JobRequest.query.filter_by(client_id=current_user_id).order_by(JobRequest.created_at.desc()).all()
+        
+        # Include job and worker details in the response
+        result = []
+        for req in requests:
+            req_dict = req.to_dict()
+            if req.job:
+                req_dict['job'] = req.job.to_dict()
+            if req.worker:
+                req_dict['worker'] = {
+                    'id': req.worker.id,
+                    'full_name': req.worker.full_name,
+                    'username': req.worker.username,
+                    'profile_pic': req.worker.get_profile_pic_url() if hasattr(req.worker, 'get_profile_pic_url') else None
+                }
+            result.append(req_dict)
+        
+        return jsonify({
+            'status': 'success',
+            'requests': result
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f'Error fetching received job requests: {str(e)}')
+        return jsonify({
+            'status': 'error',
+            'message': 'An error occurred while fetching job requests',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/job-requests/status', methods=['POST'])
+@jwt_required()
+def update_job_request_status():
+    """
+    Update the status of a job request (legacy endpoint)
+    
+    Expected JSON payload:
+    {
+        "request_id": 123,            # ID of the job request
+        "status": "accepted",         # New status: 'accepted', 'rejected', or 'cancelled'
+        "rejection_reason": "..."     # Required if status is 'rejected'
+    }
+    
+    Returns:
+        JSON response with the updated request or error message
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        # Validate required fields
+        if not data or 'request_id' not in data:
+            return jsonify({
+                'success': False,
+                'message': 'Missing required field: request_id'
+            }), 400
+            
+        return jsonify(_update_job_request_status(data['request_id'], data, current_user_id)[0]), 200
+            
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error updating job request status: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while updating the job request',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/job-requests/<int:request_id>/status', methods=['PUT'])
+@jwt_required()
+def update_job_request_status_restful(request_id):
+    """
+    Update the status of a job request (RESTful endpoint)
+    
+    Expected JSON payload:
+    {
+        "status": "accepted",         # New status: 'accepted', 'rejected', or 'cancelled'
+        "rejection_reason": "..."     # Required if status is 'rejected'
+    }
+    
+    Returns:
+        JSON response with the updated request or error message
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        # Debug logging
+        current_app.logger.info(f"Update request - User: {current_user_id}, Request ID: {request_id}, Data: {data}")
+        
+        response_data, status_code = _update_job_request_status(request_id, data, current_user_id)
+        return jsonify(response_data), status_code
+            
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error updating job request status: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while updating the job request',
             'error': str(e)
         }), 500
 
@@ -3445,8 +3773,10 @@ def get_messages(other_user_id=None):
         # Mark messages as read
         unread_messages = [msg for msg in messages if msg.receiver_id == current_user_id and not msg.is_read]
         if unread_messages:
+            now = datetime.utcnow()
             for msg in unread_messages:
                 msg.is_read = True
+                msg.read_at = now
             db.session.commit()
         
         # Get total count for pagination

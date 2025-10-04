@@ -11,6 +11,7 @@ class Message(Base):
     content = db.Column(db.Text)
     attachment = db.Column(db.String(255))
     is_read = db.Column(db.Boolean, default=False)
+    read_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Relationships with lazy loading for better performance

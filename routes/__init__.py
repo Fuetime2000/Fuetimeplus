@@ -208,9 +208,12 @@ def chat(user_id):
             is_read=False
         ).all()
         
-        for msg in unread_messages:
-            msg.is_read = True
-        db.session.commit()
+        if unread_messages:
+            now = datetime.utcnow()
+            for msg in unread_messages:
+                msg.is_read = True
+                msg.read_at = now
+            db.session.commit()
         
         # Get receiver user info
         receiver = User.query.get_or_404(user_id)

@@ -14,6 +14,7 @@ from .project import Project, Technology
 from .help_request import HelpRequest
 from .user_interaction import UserInteraction
 from .job_posting import JobPosting
+from .job_request import JobRequest
 
 # Create a dictionary of all models for easy access
 models = {
@@ -36,7 +37,8 @@ models = {
     'PortfolioRating': PortfolioRating,
     'HelpRequest': HelpRequest,
     'UserInteraction': UserInteraction,
-    'JobPosting': JobPosting
+    'JobPosting': JobPosting,
+    'JobRequest': JobRequest,
 }
 
 # Make all models available when importing from models
