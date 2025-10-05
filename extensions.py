@@ -1,3 +1,16 @@
+import sys
+
+# Apply monkey patching before any other imports
+try:
+    from gevent import monkey
+    monkey.patch_all()
+    print("Using gevent for SocketIO")
+    async_mode = 'gevent'
+except ImportError:
+    print("Warning: gevent is not available. Using threading mode")
+    async_mode = 'threading'
+
+# Now import other modules after monkey patching
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
@@ -8,7 +21,6 @@ from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_mail import Mail
-import sys
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -21,17 +33,6 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://"
 )
-
-# Configure SocketIO with gevent
-try:
-    import gevent
-    from gevent import monkey
-    monkey.patch_all()
-    print("Using gevent for SocketIO")
-    async_mode = 'gevent'
-except ImportError:
-    print("Warning: gevent is not available. Using threading mode")
-    async_mode = 'threading'
 
 # Initialize SocketIO
 socketio = SocketIO(
