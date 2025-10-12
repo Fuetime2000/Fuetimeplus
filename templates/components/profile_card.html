@@ -1,13 +1,15 @@
-<div class="card profile-card h-100 border-0 shadow-sm rounded-3 overflow-hidden">
-    <div class="card-body p-0">
+<div class="card profile-card h-100 border-0 shadow-sm overflow-hidden" style="border-radius: 12px !important; transition: transform 0.3s ease, box-shadow 0.3s ease; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 6px 15px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)'">
+    <div class="card-body p-0 bg-white">
         <!-- Profile Header with Background -->
         <div class="position-relative mb-3">
             <!-- Profile Background -->
-            <div class="profile-header" style="height: 60px; background: white;"></div>
+            <div class="profile-header" style="height: 90px; background: linear-gradient(135deg, #fff3b0 0%, #d4b3ff 100%); position: relative; overflow: hidden;">
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 40px; background: linear-gradient(to top, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);"></div>
+            </div>
             
             <!-- Profile Image and Info -->
             <div class="px-3">
-                <div class="d-flex position-relative" style="margin-top: -45px;">
+                <div class="d-flex position-relative" style="margin-top: -50px;">
                     <div class="d-flex align-items-start" style="width: 100%;">
                         <!-- Profile Image -->
                         <div class="me-3" style="min-width: 90px;">
@@ -22,15 +24,15 @@
                                      alt="{{ user.full_name|default('User') }}"
                                      data-user-id="{{ user.id }}"
                                      data-fallback-src="{{ url_for('static', filename='img/default-avatar.png') }}"
-                                     style="width: 90px; height: 90px; object-fit: cover;">
+                                     style="width: 90px; height: 90px; object-fit: cover; border: 3px solid white; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
                             </a>
                         </div>
                         
                         <!-- User Info (Name, Profession, Rating) -->
-                        <div class="flex-grow-1">
+                        <div class="flex-grow-1 pt-1 px-2" style="background: rgba(255,255,255,0.8); border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
                             <div class="d-flex align-items-center mb-1">
                                 <a href="{{ url_for('profile', user_id=user.id) }}" class="text-decoration-none">
-                                    <h6 class="mb-0 text-primary hover-underline profile-name profile-name-text d-inline" style="font-size: 1rem;" data-user-id="{{ user.id }}">
+                                    <h6 class="mb-0 fw-bold text-dark hover-underline profile-name profile-name-text d-inline" style="font-size: 1.05rem; text-shadow: 0 1px 2px rgba(255,255,255,0.8);" data-user-id="{{ user.id }}">
                                         {{ user.full_name|default('User')|title }}
                                         {% if user.verified %}
                                         <span class="verified-badge ms-1" data-bs-toggle="tooltip" title="Verified User">
@@ -41,7 +43,7 @@
                                 </a>
                             </div>
                             
-                            <p class="text-muted mb-1 profile-work" style="font-size: 0.8rem;" data-user-id="{{ user.id }}">
+                            <p class="mb-2 fw-medium profile-work" style="font-size: 0.85rem; color: #2c3e50 !important; text-shadow: 0 1px 1px rgba(255,255,255,0.8);" data-user-id="{{ user.id }}">
                                 {% if user.profession %}
                                     {{ user.profession }}
                                 {% else %}
@@ -66,18 +68,18 @@
                                 {% endif %}
                                 
                                 {% for _ in range(full_stars) %}
-                                    <i class="fas fa-star" style="color: #FFD700; font-size: 0.8rem;"></i>
+                                    <i class="fas fa-star" style="color: #FFC107; font-size: 0.8rem; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.1));"></i>
                                 {% endfor %}
                                 
                                 {% if has_half_star %}
-                                    <i class="fas fa-star-half-alt" style="color: #FFD700; font-size: 0.8rem;"></i>
+                                    <i class="fas fa-star-half-alt" style="color: #FFC107; font-size: 0.8rem; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.1));"></i>
                                 {% endif %}
                                 
                                 {% for _ in range(empty_stars) %}
-                                    <i class="far fa-star" style="color: #FFD700; font-size: 0.8rem;"></i>
+                                    <i class="far fa-star" style="color: #FFC107; font-size: 0.8rem; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.1));"></i>
                                 {% endfor %}
                                 
-                                <span class="text-muted small ms-1" style="font-size: 0.75rem;">
+                                <span class="text-muted small ms-1" style="font-size: 0.65rem;">
                                     ({{ user.total_reviews|default(0) }})
                                 </span>
                             </div>
@@ -125,61 +127,62 @@
             <!-- Info Grid -->
             <div class="row g-2 mb-3">
                 <div class="col-6">
-                    <div class="p-2 rounded-3 bg-light h-100">
+                    <div class="p-2 rounded-3 h-100" style="background-color: #f8fafc; border: 1px solid #f1f5f9; font-size: 0.8rem; transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#f1f5f9'" onmouseout="this.style.backgroundColor='#f8fafc'">
                         <div class="d-flex align-items-center mb-1">
                             <i class="fas fa-briefcase text-primary fs-6 me-2"></i>
-                            <h6 class="mb-0" style="font-size: 0.8rem;">Experience</h6>
+                            <h6 class="mb-1 fw-semibold" style="font-size: 0.75rem; color: #334155;">Experience</h6>
                         </div>
-                        <p class="mb-0 text-muted" style="font-size: 0.75rem;">{% if user.experience %}{{ user.experience }} Years (Since {{ (now.year - user.experience|int)|string }}){% else %}Not specified{% endif %}</p>
+                        <p class="mb-0" style="font-size: 0.75rem; color: #64748b !important;">{% if user.experience %}{{ user.experience }} Years (Since {{ (now.year - user.experience|int)|string }}){% else %}Not specified{% endif %}</p>
                     </div>
                 </div>
                 <div class="col-6">
-                    <div class="p-2 rounded-3 bg-light h-100">
+                    <div class="p-2 rounded-3 h-100" style="background-color: #f8fafc; border: 1px solid #f1f5f9; font-size: 0.8rem; transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#f1f5f9'" onmouseout="this.style.backgroundColor='#f8fafc'">
                         <div class="d-flex align-items-center mb-1">
                             <i class="fas fa-graduation-cap text-info fs-6 me-2"></i>
-                            <h6 class="mb-0" style="font-size: 0.8rem;">Education</h6>
+                            <h6 class="mb-1 fw-semibold" style="font-size: 0.75rem; color: #334155;">Education</h6>
                         </div>
-                        <p class="mb-0 text-muted" style="font-size: 0.75rem;">{{ user.education|default('Not specified') }}</p>
+                        <p class="mb-0" style="font-size: 0.75rem; color: #64748b !important;">{{ user.education|default('Not specified') }}</p>
                     </div>
                 </div>
                 <div class="col-6">
-                    <div class="p-2 rounded-3 bg-light h-100">
+                    <div class="p-2 rounded-3 h-100" style="background-color: #f8fafc; border: 1px solid #f1f5f9; font-size: 0.8rem; transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#f1f5f9'" onmouseout="this.style.backgroundColor='#f8fafc'">
                         <div class="d-flex align-items-center mb-1">
                             <i class="fas fa-map-marker-alt text-danger fs-6 me-2"></i>
-                            <h6 class="mb-0" style="font-size: 0.8rem;">Location</h6>
+                            <h6 class="mb-1 fw-semibold" style="font-size: 0.75rem; color: #334155;">Location</h6>
                         </div>
-                        <p class="mb-0 text-muted" style="font-size: 0.75rem;">{{ user.current_location|default('Not specified') }}</p>
+                        <p class="mb-0" style="font-size: 0.75rem; color: #64748b !important;">{{ user.current_location|default('Not specified') }}</p>
                     </div>
                 </div>
                 <div class="col-6">
-                    <div class="p-2 rounded-3 bg-light h-100">
+                    <div class="p-2 rounded-3 h-100" style="background-color: #f8fafc; border: 1px solid #f1f5f9; font-size: 0.8rem; transition: all 0.2s ease;" onmouseover="this.style.backgroundColor='#f1f5f9'" onmouseout="this.style.backgroundColor='#f8fafc'">
                         <div class="d-flex align-items-center mb-1">
                             <i class="fas fa-rupee-sign text-success fs-6 me-2"></i>
-                            <h6 class="mb-0" style="font-size: 0.8rem;">Rate</h6>
+                            <h6 class="mb-1 fw-semibold" style="font-size: 0.75rem; color: #334155;">Rate</h6>
                         </div>
-                        <p class="mb-0 text-muted" style="font-size: 0.75rem;">{% if user.payment_charge %}₹{{ user.payment_charge }} / {{ user.payment_type|default('hour') }}{% else %}Not specified{% endif %}</p>
+                        <p class="mb-0" style="font-size: 0.75rem; color: #64748b !important;">{% if user.payment_charge %}₹{{ user.payment_charge }} / {{ user.payment_type|default('hour') }}{% else %}Not specified{% endif %}</p>
                     </div>
                 </div>
             </div>
 
             <!-- Skills -->
             {% if user.skills %}
-            <div class="mb-3">
-                <h6 class="mb-2 text-muted text-start ps-1" style="font-size: 0.8rem; letter-spacing: 0.5px; text-transform: uppercase;">Skills</h6>
+            <div class="mb-3 mt-2">
+                <h6 class="mb-2 text-muted text-start fw-semibold" style="font-size: 0.75rem; letter-spacing: 0.5px; color: #64748b !important;">Skills</h6>
                 <div class="skills-container d-flex flex-wrap gap-2">
                     {% for skill in (user.skills or '').split(',') %}
                     {% if skill.strip() %}
-                    <span class="badge rounded-pill px-3 py-1 skill-badge" style="
-                        font-size: 0.7rem; 
+                    <span class="badge px-2 py-1 skill-badge" style="
+                        font-size: 0.65rem; 
                         font-weight: normal;
-                        color: #6c757d;
-                        background-color: transparent;
-                        border: 1px solid #dee2e6;
-                        transition: transform 0.2s ease;
+                        color: #4a6b8a !important;
+                        background-color: #f1f5ff;
+                        border: 1px solid #e2e8f0;
+                        transition: all 0.2s ease;
                         cursor: default;
                         display: inline-flex;
                         align-items: center;
-                        margin: 2px;
+                        margin: 2px 4px 2px 0;
+                        border-radius: 6px !important;
                     " 
                     onmouseover="this.style.transform='scale(1.05)'" 
                     onmouseout="this.style.transform='scale(1)'">
@@ -449,7 +452,7 @@ function fallbackShare(url) {
     padding: 0.2rem 0.5rem;
     border-radius: 12px;
     font-size: 0.7rem;
-    color: #6c757d;
+    color: #4a6b8a !important;
     transition: all 0.2s ease;
     white-space: nowrap;
     display: inline-flex;
@@ -459,7 +462,7 @@ function fallbackShare(url) {
 
 .distance-badge i {
     font-size: 0.65rem;
-    color: #6c757d;
+    color: #4a6b8a !important;
     margin-right: 3px;
 }
 
@@ -1373,7 +1376,7 @@ function showPaymentModal(requiredAmount, currentBalance) {
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body text-center py-4">
-                        <div class="mb-3">
+                        <div class="mb-3 mt-2">
                             <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size: 3rem;"></i>
                         </div>
                         <h5 class="mb-3">You don't have enough balance</h5>
