@@ -569,7 +569,7 @@ def flutter_register():
                     'access_token': access_token,
                     'refresh_token': refresh_token,
                     'token_type': 'bearer',
-                    'expires_in': 15 * 60  # 15 minutes in seconds
+                    'expires_in': None  # Tokens never expire
                 }
             }
         }
@@ -681,7 +681,7 @@ def refresh():
             'status': 'success',
             'access_token': access_token,
             'token_type': 'bearer',
-            'expires_in': 15 * 60  # 15 minutes in seconds
+            'expires_in': None  # Tokens never expire
         })
         
     except Exception as e:
@@ -829,7 +829,7 @@ def login():
                     'access_token': access_token,
                     'refresh_token': refresh_token,
                     'token_type': 'bearer',
-                    'expires_in': 15 * 60  # 15 minutes in seconds
+                    'expires_in': None  # Tokens never expire
                 }
             }
         }
