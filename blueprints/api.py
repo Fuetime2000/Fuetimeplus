@@ -527,14 +527,16 @@ def flutter_register():
             
         current_app.logger.info(f'Creating tokens for user ID: {user_id_str} (type: {type(user_id_str).__name__})')
         
-        # Create tokens with string user ID
+        # Create tokens with string user ID - tokens never expire
         access_token = create_access_token(
             identity=user_id_str,
-            additional_claims=additional_claims
+            additional_claims=additional_claims,
+            expires_delta=False
         )
         refresh_token = create_refresh_token(
             identity=user_id_str,
-            additional_claims=additional_claims
+            additional_claims=additional_claims,
+            expires_delta=False
         )
         
         # Update user's last login and device ID
@@ -666,7 +668,7 @@ def refresh():
                 'message': 'User not found'
             }), 404
             
-        # Create new access token
+        # Create new access token - token never expires
         access_token = create_access_token(
             identity=str(user.id),
             additional_claims={
@@ -674,7 +676,8 @@ def refresh():
                 'email': user.email,
                 'is_verified': user.email_verified,
                 'device_id': user.device_id
-            }
+            },
+            expires_delta=False
         )
         
         return jsonify({
@@ -795,14 +798,16 @@ def login():
             
         current_app.logger.info(f'Creating tokens for user ID: {user_id_str} (type: {type(user_id_str).__name__})')
         
-        # Create tokens with string user ID
+        # Create tokens with string user ID - tokens never expire
         access_token = create_access_token(
             identity=user_id_str,
-            additional_claims=additional_claims
+            additional_claims=additional_claims,
+            expires_delta=False
         )
         refresh_token = create_refresh_token(
             identity=user_id_str,
-            additional_claims=additional_claims
+            additional_claims=additional_claims,
+            expires_delta=False
         )
         
         # Update user's last login and device ID
