@@ -171,13 +171,15 @@ mail = Mail(app)
 
 # Import and register API blueprint after app is created
 
-# JWT configuration
-jwt = JWTManager(app)
+# JWT configuration - MUST be set BEFORE JWTManager initialization
 app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = False  # Tokens never expire
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = False  # Tokens never expire
 app.config['JWT_BLACKLIST_ENABLED'] = True
 app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access', 'refresh']
+
+# Initialize JWTManager AFTER configuration
+jwt = JWTManager(app)
 
 # Session configuration
 app.config['SESSION_TYPE'] = 'filesystem'
@@ -1002,19 +1004,8 @@ def handle_user_disconnect(user_id):
     emit('status', {'user_id': user_id, 'status': 'offline'}, room=f'user_{user_id}')
     print(f"User {user_id} disconnected from WebSocket")
 
-# JWT Configuration
-app.config['JWT_SECRET_KEY'] = 'your-256-bit-secret'  # Change this to a secure secret key
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(minutes=15)
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
-app.config['JWT_TOKEN_LOCATION'] = ['headers', 'cookies']
-app.config['JWT_COOKIE_SECURE'] = True
-app.config['JWT_COOKIE_CSRF_PROTECT'] = False  # Disable CSRF for API endpoints
-app.config['JWT_ACCESS_COOKIE_PATH'] = '/api/'
-app.config['JWT_REFRESH_COOKIE_PATH'] = '/api/auth/refresh'
-app.config['JWT_COOKIE_SAMESITE'] = 'Lax'
-
-# Initialize JWT
-jwt = JWTManager(app)
+# JWT Configuration is already set at the top of the file (lines 174-182)
+# Removed duplicate configuration that was overriding the never-expire settings
 
 # Configure supported languages
 app.config['BABEL_DEFAULT_LOCALE'] = 'en'
