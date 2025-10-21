@@ -173,8 +173,9 @@ mail = Mail(app)
 
 # JWT configuration - MUST be set BEFORE JWTManager initialization
 app.config['JWT_SECRET_KEY'] = app.config['SECRET_KEY']
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = False  # Tokens never expire
-app.config['JWT_REFRESH_TOKEN_EXPIRES'] = False  # Tokens never expire
+# Set token expiration to 100 years (effectively never expires)
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=36500)  # 100 years
+app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=36500)  # 100 years
 app.config['JWT_BLACKLIST_ENABLED'] = True
 app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access', 'refresh']
 
