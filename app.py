@@ -160,9 +160,9 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 465  # SSL port
 app.config['MAIL_USE_TLS'] = False
 app.config['MAIL_USE_SSL'] = True
-app.config['MAIL_USERNAME'] = 'dipendra998405@gmail.com'  # Your Gmail address
-app.config['MAIL_PASSWORD'] = 'qrjz depb zcsz zcba'  # Your App Password
-app.config['MAIL_DEFAULT_SENDER'] = 'dipendra998405@gmail.com'  # Your Gmail address
+app.config['MAIL_USERNAME'] = 'verify.fuetime@gmail.com'  # Your Gmail address
+app.config['MAIL_PASSWORD'] = 'kric osob lmdv czaf'  # Your App Password
+app.config['MAIL_DEFAULT_SENDER'] = 'verify.fuetime@gmail.com'  # Your Gmail address
 app.config['MAIL_DEBUG'] = True  # Enable debug output
 
 # Initialize Flask-Mail
