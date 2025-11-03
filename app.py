@@ -754,13 +754,7 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 if not os.path.exists(app.config['SESSION_FILE_DIR']):
     os.makedirs(app.config['SESSION_FILE_DIR'])
 
-# Email configuration
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'dipendra998405@gmail.com'  # Replace with your email
-app.config['MAIL_PASSWORD'] = 'qrjz depb zcsz zcba'  # Replace with your app password
-app.config['MAIL_DEFAULT_SENDER'] = 'dipendra998405@gmail.com'  # Replace with your email
+# Email configuration - REMOVED (using configuration at lines 159-166)
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
@@ -836,14 +830,7 @@ chat_upload_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'chat')
 if not os.path.exists(chat_upload_dir):
     os.makedirs(chat_upload_dir)
 
-# Email configuration
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 465  # Use SSL port
-app.config['MAIL_USE_SSL'] = True
-app.config['MAIL_USE_TLS'] = False
-app.config['MAIL_USERNAME'] = 'dipendra998405@gmail.com'  # App email
-app.config['MAIL_PASSWORD'] = 'qrjz depb zcsz zcba'  # App-specific password
-app.config['MAIL_DEFAULT_SENDER'] = 'dipendra998405@gmail.com'
+# Email configuration - REMOVED (using configuration at lines 159-166)
 
 # Initialize extensions
 csrf = CSRFProtect(app)
@@ -1102,6 +1089,8 @@ def send_otp_email(user_email, otp):
     # Email configuration
     sender_email = app.config.get('MAIL_USERNAME')
     sender_password = app.config.get('MAIL_PASSWORD')
+    mail_port = app.config.get('MAIL_PORT', 465)
+    use_ssl = app.config.get('MAIL_USE_SSL', True)
     
     # Create message
     msg = MIMEMultipart()
@@ -1122,17 +1111,30 @@ Fuetime Team'''
     msg.attach(MIMEText(body, 'plain'))
     
     try:
-        # Create SMTP session
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
+        # Create SMTP session using SSL or TLS based on configuration
+        if use_ssl:
+            # Use SSL (port 465)
+            server = smtplib.SMTP_SSL('smtp.gmail.com', mail_port)
+        else:
+            # Use TLS (port 587)
+            server = smtplib.SMTP('smtp.gmail.com', mail_port)
+            server.starttls()
+        
         server.login(sender_email, sender_password)
         
         # Send email
         text = msg.as_string()
         server.sendmail(sender_email, user_email, text)
         server.quit()
+        
+        app.logger.info(f'OTP email sent successfully to {user_email}')
         return True
+    except smtplib.SMTPException as e:
+        app.logger.error(f'SMTP Error sending OTP email to {user_email}: {str(e)}')
+        print(f'Error sending OTP email: {str(e)}')
+        return False
     except Exception as e:
+        app.logger.error(f'Error sending OTP email to {user_email}: {str(e)}')
         print(f'Error sending OTP email: {str(e)}')
         return False
 
