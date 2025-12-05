@@ -55,6 +55,7 @@ from models.report import Report
 from models.saved_user import SavedUser
 from models.job_posting import JobPosting
 from models.job_request import JobRequest
+from models.device_pairing import DevicePairing, EmergencyAlert
 from extensions import db
 from datetime import datetime
 from flask import current_app
@@ -5362,5 +5363,513 @@ def check_saved_status(user_id):
         return jsonify({
             'status': 'error',
             'message': 'An error occurred while checking saved status',
+            'error': str(e)
+        }), 500
+
+
+# ============================================================================
+# EMERGENCY ALERT SYSTEM - Device-to-Device Emergency Alerts
+# ============================================================================
+
+@api_bp.route('/emergency/generateCode', methods=['POST'])
+@cross_origin()
+@limiter.limit("10 per hour")
+def generate_pairing_code():
+    """
+    Generate a pairing code for device-to-device emergency alerts
+    
+    Request Body:
+    {
+        "deviceToken": "firebase_device_token_here",
+        "deviceName": "Mom's Phone"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        device_token = data.get('deviceToken')
+        device_name = data.get('deviceName', 'Unknown Device')
+        
+        if not device_token:
+            return jsonify({
+                'success': False,
+                'message': 'Device token is required'
+            }), 400
+        
+        # Generate unique 6-digit code
+        import random
+        max_attempts = 10
+        pairing_code = None
+        
+        for _ in range(max_attempts):
+            code = str(random.randint(100000, 999999))
+            existing = DevicePairing.query.filter_by(pairing_code=code).first()
+            if not existing:
+                pairing_code = code
+                break
+        
+        if not pairing_code:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to generate unique code. Please try again.'
+            }), 500
+        
+        # Set expiration to 24 hours from now
+        from datetime import datetime, timedelta
+        expires_at = datetime.utcnow() + timedelta(hours=24)
+        
+        # Create pairing record
+        pairing = DevicePairing(
+            pairing_code=pairing_code,
+            device_a_token=device_token,
+            device_a_name=device_name,
+            expires_at=expires_at,
+            is_active=False  # Not active until paired
+        )
+        
+        db.session.add(pairing)
+        db.session.commit()
+        
+        current_app.logger.info(f"Generated pairing code {pairing_code} for device {device_name}")
+        
+        return jsonify({
+            'success': True,
+            'code': pairing_code,
+            'expiresAt': int(expires_at.timestamp() * 1000),  # Milliseconds
+            'message': 'Pairing code generated successfully'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error generating pairing code: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while generating pairing code',
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/emergency/pairDevice', methods=['POST'])
+@cross_origin()
+@limiter.limit("20 per hour")
+def pair_device():
+    """
+    Pair a device using a pairing code
+    
+    Request Body:
+    {
+        "code": "482911",
+        "deviceToken": "firebase_device_token_b",
+        "deviceName": "Dad's Phone"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            current_app.logger.error('Pairing failed: No data provided')
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        code = data.get('code')
+        device_token = data.get('deviceToken')
+        device_name = data.get('deviceName', 'Unknown Device')
+        
+        current_app.logger.info(f'Pairing request - Code: {code}, Token: {device_token[:20]}..., Name: {device_name}')
+        
+        if not code or not device_token:
+            current_app.logger.error(f'Pairing failed: Missing required fields - Code: {bool(code)}, Token: {bool(device_token)}')
+            return jsonify({
+                'success': False,
+                'message': 'Code and device token are required'
+            }), 400
+        
+        # Find pairing by code
+        pairing = DevicePairing.query.filter_by(pairing_code=code).first()
+        
+        if not pairing:
+            current_app.logger.error(f'Pairing failed: Invalid code {code}')
+            return jsonify({
+                'success': False,
+                'message': 'Invalid pairing code'
+            }), 404
+        
+        # Check if code is expired
+        from datetime import datetime
+        if datetime.utcnow() > pairing.expires_at:
+            current_app.logger.error(f'Pairing failed: Code {code} expired at {pairing.expires_at}')
+            return jsonify({
+                'success': False,
+                'message': 'Pairing code has expired'
+            }), 400
+        
+        # Check if already paired
+        if pairing.device_b_token:
+            current_app.logger.error(f'Pairing failed: Code {code} already used')
+            return jsonify({
+                'success': False,
+                'message': 'This code has already been used'
+            }), 400
+        
+        # Check if trying to pair with self
+        if pairing.device_a_token == device_token:
+            current_app.logger.error(f'Pairing failed: Attempting to pair device with itself')
+            return jsonify({
+                'success': False,
+                'message': 'Cannot pair device with itself'
+            }), 400
+        
+        # Update pairing
+        pairing.device_b_token = device_token
+        pairing.device_b_name = device_name
+        pairing.is_active = True
+        pairing.paired_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"Devices paired successfully with code {code}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Devices paired successfully',
+            'pairing': {
+                'code': pairing.pairing_code,
+                'deviceAName': pairing.device_a_name,
+                'deviceBName': pairing.device_b_name,
+                'pairedAt': int(pairing.paired_at.timestamp() * 1000)
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error pairing devices: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while pairing devices',
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/emergency/sendEmergency', methods=['POST'])
+@cross_origin()
+@limiter.limit("100 per hour")
+def send_emergency():
+    """
+    Send emergency alert to paired devices
+    
+    Request Body:
+    {
+        "fromDeviceToken": "token_a",
+        "reason": "FALL_DETECTED",
+        "latitude": 28.6139,
+        "longitude": 77.2090,
+        "accuracy": 12.5,
+        "batteryLevel": 45,
+        "timestamp": 1700000000000,
+        "message": "Fall detected! User may need help."
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        from_token = data.get('fromDeviceToken')
+        reason = data.get('reason', 'EMERGENCY')
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+        accuracy = data.get('accuracy')
+        battery_level = data.get('batteryLevel')
+        timestamp = data.get('timestamp')
+        message = data.get('message', '')
+        
+        if not from_token:
+            return jsonify({
+                'success': False,
+                'message': 'Device token is required'
+            }), 400
+        
+        # Find all active pairings for this device
+        pairings_a = DevicePairing.query.filter_by(
+            device_a_token=from_token,
+            is_active=True
+        ).all()
+        
+        pairings_b = DevicePairing.query.filter_by(
+            device_b_token=from_token,
+            is_active=True
+        ).all()
+        
+        # Collect all paired device tokens
+        paired_tokens = []
+        device_name = 'Unknown Device'
+        
+        for pairing in pairings_a:
+            if pairing.device_b_token:
+                paired_tokens.append(pairing.device_b_token)
+                device_name = pairing.device_a_name or device_name
+        
+        for pairing in pairings_b:
+            if pairing.device_a_token:
+                paired_tokens.append(pairing.device_a_token)
+                device_name = pairing.device_b_name or device_name
+        
+        if not paired_tokens:
+            return jsonify({
+                'success': False,
+                'message': 'No paired devices found'
+            }), 404
+        
+        # Send FCM notifications to all paired devices
+        from utils.firebase_helper import send_emergency_alert
+        
+        alert_ids = []
+        sent_count = 0
+        
+        for to_token in paired_tokens:
+            # Log alert in database
+            alert = EmergencyAlert(
+                from_device_token=from_token,
+                to_device_token=to_token,
+                reason=reason,
+                latitude=latitude,
+                longitude=longitude,
+                accuracy=accuracy,
+                battery_level=battery_level,
+                message=message,
+                timestamp=timestamp or int(datetime.utcnow().timestamp() * 1000)
+            )
+            db.session.add(alert)
+            db.session.flush()  # Get the alert ID
+            
+            # Prepare alert data for FCM
+            alert_data = {
+                'reason': reason,
+                'latitude': latitude,
+                'longitude': longitude,
+                'accuracy': accuracy,
+                'batteryLevel': battery_level,
+                'timestamp': timestamp,
+                'message': message,
+                'deviceName': device_name
+            }
+            
+            # Send FCM notification
+            success, result = send_emergency_alert(to_token, alert_data)
+            
+            if success:
+                alert.delivered = True
+                alert.delivered_at = datetime.utcnow()
+                sent_count += 1
+                current_app.logger.info(f"Emergency alert sent to {to_token}: {result}")
+            else:
+                current_app.logger.error(f"Failed to send alert to {to_token}: {result}")
+            
+            alert_ids.append(f"alert_{alert.id}")
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Alert sent to {sent_count} device(s)',
+            'alertIds': alert_ids,
+            'sentCount': sent_count,
+            'totalPaired': len(paired_tokens)
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error sending emergency alert: {str(e)}')
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while sending emergency alert',
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/emergency/pairings', methods=['GET'])
+@cross_origin()
+@limiter.limit("100 per hour")
+def get_pairings():
+    """
+    Get all active pairings for a device
+    
+    Query Parameters:
+    - deviceToken: The device token to get pairings for
+    """
+    try:
+        device_token = request.args.get('deviceToken')
+        
+        if not device_token:
+            return jsonify({
+                'success': False,
+                'message': 'Device token is required'
+            }), 400
+        
+        # Find all active pairings
+        pairings_a = DevicePairing.query.filter_by(
+            device_a_token=device_token,
+            is_active=True
+        ).all()
+        
+        pairings_b = DevicePairing.query.filter_by(
+            device_b_token=device_token,
+            is_active=True
+        ).all()
+        
+        result_pairings = []
+        
+        for pairing in pairings_a:
+            if pairing.device_b_token:
+                result_pairings.append({
+                    'code': pairing.pairing_code,
+                    'pairedDeviceName': pairing.device_b_name,
+                    'pairedAt': int(pairing.paired_at.timestamp() * 1000) if pairing.paired_at else None,
+                    'isActive': pairing.is_active
+                })
+        
+        for pairing in pairings_b:
+            result_pairings.append({
+                'code': pairing.pairing_code,
+                'pairedDeviceName': pairing.device_a_name,
+                'pairedAt': int(pairing.paired_at.timestamp() * 1000) if pairing.paired_at else None,
+                'isActive': pairing.is_active
+            })
+        
+        return jsonify({
+            'success': True,
+            'pairings': result_pairings
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f'Error getting pairings: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while getting pairings',
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/emergency/unpair', methods=['DELETE'])
+@cross_origin()
+@limiter.limit("20 per hour")
+def unpair_devices():
+    """
+    Unpair devices
+    
+    Request Body:
+    {
+        "code": "482911",
+        "deviceToken": "token_a"
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        code = data.get('code')
+        device_token = data.get('deviceToken')
+        
+        if not code or not device_token:
+            return jsonify({
+                'success': False,
+                'message': 'Code and device token are required'
+            }), 400
+        
+        # Find pairing
+        pairing = DevicePairing.query.filter_by(pairing_code=code).first()
+        
+        if not pairing:
+            return jsonify({
+                'success': False,
+                'message': 'Pairing not found'
+            }), 404
+        
+        # Verify device token matches
+        if pairing.device_a_token != device_token and pairing.device_b_token != device_token:
+            return jsonify({
+                'success': False,
+                'message': 'Unauthorized to unpair these devices'
+            }), 403
+        
+        # Deactivate pairing
+        pairing.is_active = False
+        db.session.commit()
+        
+        current_app.logger.info(f"Devices unpaired successfully with code {code}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Devices unpaired successfully'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error unpairing devices: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while unpairing devices',
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/emergency/alerts/history', methods=['GET'])
+@cross_origin()
+@limiter.limit("100 per hour")
+def get_alert_history():
+    """
+    Get emergency alert history for a device
+    
+    Query Parameters:
+    - deviceToken: The device token
+    - limit: Number of alerts to return (default: 50)
+    """
+    try:
+        device_token = request.args.get('deviceToken')
+        limit = int(request.args.get('limit', 50))
+        
+        if not device_token:
+            return jsonify({
+                'success': False,
+                'message': 'Device token is required'
+            }), 400
+        
+        # Get alerts sent from or to this device
+        alerts = EmergencyAlert.query.filter(
+            or_(
+                EmergencyAlert.from_device_token == device_token,
+                EmergencyAlert.to_device_token == device_token
+            )
+        ).order_by(EmergencyAlert.created_at.desc()).limit(limit).all()
+        
+        return jsonify({
+            'success': True,
+            'alerts': [alert.to_dict() for alert in alerts]
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f'Error getting alert history: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while getting alert history',
             'error': str(e)
         }), 500

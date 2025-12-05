@@ -106,7 +106,7 @@ app.config['WTF_CSRF_CHECK_DEFAULT'] = False
 # Initialize SocketIO with the app
 socketio.init_app(app, 
                  cors_allowed_origins="*",
-                 async_mode='gevent',
+                 async_mode='eventlet',
                  logger=True,
                  engineio_logger=False)
 

@@ -8,6 +8,7 @@ click==8.1.7
 # Database
 Flask-SQLAlchemy==3.0.5
 SQLAlchemy>=2.0.0
+Flask-Migrate>=4.0.0
 
 # Authentication & Security
 Flask-Login==0.6.3
@@ -20,9 +21,9 @@ email-validator==2.1.0.post1
 # Real-time Communication
 Flask-SocketIO==5.3.5
 python-socketio==5.7.2
-eventlet==0.33.3
-gevent==23.9.1
-gevent-websocket==0.10.1
+eventlet>=0.36.1
+# gevent==23.9.1
+# gevent-websocket==0.10.1
 
 # Internationalization
 Flask-Babel==4.0.0
@@ -36,13 +37,14 @@ email-validator==2.1.0.post1
 # Caching
 Flask-Caching==2.1.0
 redis==5.0.1  # For production caching
+Flask-Compress>=1.14  # Response compression
 
 # Payments
 razorpay==1.4.2
 stripe==7.6.0  # Alternative payment processor
 
 # File Processing
-Pillow==10.1.0  # For image processing
+Pillow>=10.4.0  # For image processing
 python-magic==0.4.27  # For file type validation
 
 # Email
@@ -65,3 +67,10 @@ flake8==6.1.0
 python-dotenv==1.0.0  # For loading .env files
 python-dateutil==2.8.2
 pytz==2023.3.post1
+requests>=2.31.0  # HTTP library
+pandas>=2.0.0  # Data analysis library
+flask-cors>=4.0.0  # CORS support
+flask-jwt-extended>=4.5.0  # JWT authentication
+
+# Firebase Cloud Messaging (for emergency alerts)
+firebase-admin>=6.2.0  # Firebase Admin SDK for push notifications

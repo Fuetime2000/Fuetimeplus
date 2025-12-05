@@ -15,6 +15,7 @@ from .help_request import HelpRequest
 from .user_interaction import UserInteraction
 from .job_posting import JobPosting
 from .job_request import JobRequest
+from .device_pairing import DevicePairing, EmergencyAlert
 
 # Create a dictionary of all models for easy access
 models = {
@@ -39,6 +40,8 @@ models = {
     'UserInteraction': UserInteraction,
     'JobPosting': JobPosting,
     'JobRequest': JobRequest,
+    'DevicePairing': DevicePairing,
+    'EmergencyAlert': EmergencyAlert,
 }
 
 # Make all models available when importing from models

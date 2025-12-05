@@ -1,0 +1,231 @@
+{
+  "info": {
+    "name": "Emergency Alert System API",
+    "description": "Device-to-Device Emergency Alert System for Lairy",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000/api/v1/emergency",
+      "type": "string"
+    },
+    {
+      "key": "device_a_token",
+      "value": "test_token_a",
+      "type": "string"
+    },
+    {
+      "key": "device_b_token",
+      "value": "test_token_b",
+      "type": "string"
+    },
+    {
+      "key": "pairing_code",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Generate Pairing Code",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.success && jsonData.code) {",
+              "        pm.collectionVariables.set('pairing_code', jsonData.code);",
+              "        pm.environment.set('pairing_code', jsonData.code);",
+              "        console.log('Pairing code saved: ' + jsonData.code);",
+              "    }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deviceToken\": \"{{device_a_token}}\",\n  \"deviceName\": \"Test Device A\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/generateCode",
+          "host": ["{{base_url}}"],
+          "path": ["generateCode"]
+        },
+        "description": "Generate a 6-digit pairing code for Device A. Code expires in 24 hours."
+      },
+      "response": []
+    },
+    {
+      "name": "2. Pair Device",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{pairing_code}}\",\n  \"deviceToken\": \"{{device_b_token}}\",\n  \"deviceName\": \"Test Device B\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pairDevice",
+          "host": ["{{base_url}}"],
+          "path": ["pairDevice"]
+        },
+        "description": "Pair Device B with Device A using the pairing code."
+      },
+      "response": []
+    },
+    {
+      "name": "3. Send Emergency Alert",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fromDeviceToken\": \"{{device_a_token}}\",\n  \"reason\": \"FALL_DETECTED\",\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090,\n  \"accuracy\": 12.5,\n  \"batteryLevel\": 45,\n  \"timestamp\": {{$timestamp}}000,\n  \"message\": \"Fall detected! User may need help.\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/sendEmergency",
+          "host": ["{{base_url}}"],
+          "path": ["sendEmergency"]
+        },
+        "description": "Send emergency alert from Device A to all paired devices."
+      },
+      "response": []
+    },
+    {
+      "name": "4. Get Active Pairings",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/pairings?deviceToken={{device_a_token}}",
+          "host": ["{{base_url}}"],
+          "path": ["pairings"],
+          "query": [
+            {
+              "key": "deviceToken",
+              "value": "{{device_a_token}}"
+            }
+          ]
+        },
+        "description": "Get all active pairings for Device A."
+      },
+      "response": []
+    },
+    {
+      "name": "5. Get Alert History",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/alerts/history?deviceToken={{device_a_token}}&limit=50",
+          "host": ["{{base_url}}"],
+          "path": ["alerts", "history"],
+          "query": [
+            {
+              "key": "deviceToken",
+              "value": "{{device_a_token}}"
+            },
+            {
+              "key": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "description": "Get emergency alert history for Device A."
+      },
+      "response": []
+    },
+    {
+      "name": "6. Unpair Devices",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{pairing_code}}\",\n  \"deviceToken\": \"{{device_a_token}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/unpair",
+          "host": ["{{base_url}}"],
+          "path": ["unpair"]
+        },
+        "description": "Unpair Device A and Device B."
+      },
+      "response": []
+    },
+    {
+      "name": "Test - Send SOS Alert",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fromDeviceToken\": \"{{device_a_token}}\",\n  \"reason\": \"SOS_BUTTON\",\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090,\n  \"accuracy\": 10.0,\n  \"batteryLevel\": 30,\n  \"timestamp\": {{$timestamp}}000,\n  \"message\": \"SOS button pressed!\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/sendEmergency",
+          "host": ["{{base_url}}"],
+          "path": ["sendEmergency"]
+        },
+        "description": "Test sending SOS button alert."
+      },
+      "response": []
+    },
+    {
+      "name": "Test - Send Panic Alert",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fromDeviceToken\": \"{{device_a_token}}\",\n  \"reason\": \"PANIC_BUTTON\",\n  \"latitude\": 28.6139,\n  \"longitude\": 77.2090,\n  \"accuracy\": 15.0,\n  \"batteryLevel\": 20,\n  \"timestamp\": {{$timestamp}}000,\n  \"message\": \"Panic button activated!\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/sendEmergency",
+          "host": ["{{base_url}}"],
+          "path": ["sendEmergency"]
+        },
+        "description": "Test sending panic button alert."
+      },
+      "response": []
+    }
+  ]
+}
