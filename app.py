@@ -10,6 +10,7 @@ import time
 import traceback
 import smtplib
 from itertools import groupby
+from models.user_interaction import UserInteraction
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
@@ -103,12 +104,8 @@ app.register_blueprint(search_bp, url_prefix='')
 app.config['WTF_CSRF_ENABLED'] = False
 app.config['WTF_CSRF_CHECK_DEFAULT'] = False
 
-# Initialize SocketIO with the app
-socketio.init_app(app, 
-                 cors_allowed_origins="*",
-                 async_mode='eventlet',
-                 logger=True,
-                 engineio_logger=False)
+# Initialize SocketIO with the app (single initialization)
+socketio.init_app(app)
 
 # Register Socket.IO error handler
 @socketio.on_error_default
@@ -277,7 +274,6 @@ cache.init_app(app)
 
 # Blueprints are registered in blueprints/__init__.py
 csrf.init_app(app)
-socketio.init_app(app)
 
 # Import all models after app and db initialization
 from models.user import User
@@ -650,18 +646,6 @@ app.config['PRESERVE_CONTEXT_ON_EXCEPTION'] = True
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
 
-# Initialize Socket.IO
-socketio.init_app(app, 
-    async_mode='threading',
-    ping_timeout=60,
-    ping_interval=25,
-    cors_allowed_origins='*',
-    max_http_buffer_size=16 * 1024 * 1024,  # 16MB for file uploads
-    message_queue=None,
-    logger=True,
-    engineio_logger=True,
-    manage_session=True)
-
 @app.route('/health')
 def health_check():
     return "OK", 200
@@ -787,13 +771,6 @@ with app.app_context():
 # LoginManager initialization moved to extensions.py
 # Set login view
 login_manager.login_view = 'login'
-
-# Configure SocketIO
-socketio.cors_allowed_origins = "*"
-socketio.async_mode = 'threading'
-socketio.ping_timeout = 5
-socketio.ping_interval = 25
-socketio.max_http_buffer_size = 10e6
 
 # Enable debug mode and detailed error reporting
 app.debug = True
@@ -2378,6 +2355,37 @@ def profile(user_id):
         
         app.logger.info(f"Found user: {user.username} (ID: {user.id})")
         
+        # Track profile view if viewer is not the profile owner
+        if current_user.is_authenticated and current_user.id != user.id:
+            try:
+                # Check if we already have a recent view from this user to avoid duplicates
+                from datetime import datetime, timedelta
+                recent_view = UserInteraction.query.filter_by(
+                    viewer_id=current_user.id,
+                    viewed_id=user.id,
+                    interaction_type='profile_view'
+                ).filter(
+                    UserInteraction.created_at > datetime.utcnow() - timedelta(hours=1)
+                ).first()
+                
+                if not recent_view:
+                    # Create new interaction record
+                    interaction = UserInteraction(
+                        viewer_id=current_user.id,
+                        viewed_id=user.id,
+                        interaction_type='profile_view'
+                    )
+                    db.session.add(interaction)
+                    
+                    # Update profile view count
+                    user.profile_views = (user.profile_views or 0) + 1
+                    
+                    db.session.commit()
+                    app.logger.info(f"Recorded profile view: {current_user.id} -> {user.id}")
+            except Exception as e:
+                app.logger.error(f"Error tracking profile view: {e}")
+                db.session.rollback()
+        
         # Initialize user stats if they are None
         if user.total_reviews is None:
             user.total_reviews = 0
@@ -3478,34 +3486,59 @@ def admin_interactions():
                 'timestamp': interaction.created_at
             })
     
+    # Also get actual messages and calls if they exist
+    from models.message import Message
+    from models.Call import Call
+    
+    # Get recent messages
+    messages = Message.query.order_by(Message.created_at.desc()).limit(50).all()
+    for msg in messages:
+        interaction_stats['messages'].append({
+            'sender': msg.sender,
+            'receiver': msg.receiver,
+            'timestamp': msg.created_at
+        })
+    
+    # Get recent calls
+    try:
+        calls = Call.query.order_by(Call.created_at.desc()).limit(50).all()
+        for call in calls:
+            interaction_stats['calls'].append({
+                'caller': call.caller,
+                'callee': call.callee,
+                'timestamp': call.created_at
+            })
+    except:
+        pass  # Call table might not exist
+    
     # Prepare stats for the template
     stats = {
         'profile_views': interaction_stats['profile_views'],
         'total_views': len(interaction_stats['profile_views']),
-        'unique_viewers': len({view['viewer'].id for view in interaction_stats['profile_views']}),
+        'unique_viewers': len({view['viewer'].id for view in interaction_stats['profile_views'] if view['viewer']}),
         'top_viewed': sorted(
             [(k, len(list(g))) for k, g in groupby(
-                sorted(interaction_stats['profile_views'], key=lambda x: x['viewed'].id),
+                sorted([v for v in interaction_stats['profile_views'] if v['viewed']], key=lambda x: x['viewed'].id),
                 key=lambda x: x['viewed']
             )],
             key=lambda x: x[1],
             reverse=True
         )[:5],  # Top 5 most viewed profiles
         'total_messages': len(interaction_stats['messages']),
-        'unique_senders': len({msg['sender'].id for msg in interaction_stats['messages']}),
+        'unique_senders': len({msg['sender'].id for msg in interaction_stats['messages'] if msg['sender']}),
         'top_senders': sorted(
             [(k, len(list(g))) for k, g in groupby(
-                sorted(interaction_stats['messages'], key=lambda x: x['sender'].id),
+                sorted([m for m in interaction_stats['messages'] if m['sender']], key=lambda x: x['sender'].id),
                 key=lambda x: x['sender']
             )],
             key=lambda x: x[1],
             reverse=True
         )[:5],  # Top 5 most active senders
         'total_calls': len(interaction_stats['calls']),
-        'unique_callers': len({call['caller'].id for call in interaction_stats['calls']}),
+        'unique_callers': len({call['caller'].id for call in interaction_stats['calls'] if call['caller']}),
         'top_callers': sorted(
             [(k, len(list(g))) for k, g in groupby(
-                sorted(interaction_stats['calls'], key=lambda x: x['caller'].id),
+                sorted([c for c in interaction_stats['calls'] if c['caller']], key=lambda x: x['caller'].id),
                 key=lambda x: x['caller']
             )],
             key=lambda x: x[1],

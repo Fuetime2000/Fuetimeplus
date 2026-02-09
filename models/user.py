@@ -108,9 +108,16 @@ class User(Base, UserMixin):
             # Check if the photo is already a full URL
             if self.photo.startswith(('http://', 'https://')):
                 return self.photo
-            # Otherwise, construct the URL using the configured upload folder
-            return f"/profile_pic/{self.photo}"
-        # Return a default avatar URL if no photo is set
+            
+            # For local photos, check if file exists before returning URL
+            import os
+            from flask import current_app
+            
+            photo_path = os.path.join(current_app.root_path, 'static', 'uploads', 'profile_pics', self.photo)
+            if os.path.exists(photo_path):
+                return f"/profile_pic/{self.photo}"
+        
+        # Return a default avatar URL if no photo is set or file doesn't exist
         return "/static/images/default-avatar.png"
     
     @property

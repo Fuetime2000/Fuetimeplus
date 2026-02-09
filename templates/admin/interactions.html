@@ -6,7 +6,7 @@
     /* Card Styles */
     .stat-card {
         border-radius: 20px;
-        transition: all 0.3s ease;
+        /* transition: all 0.3s ease; */
         box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
         border: none;
         background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
@@ -93,7 +93,7 @@
         font-weight: 600;
         color: #6c757d;
         border: 2px solid transparent;
-        transition: all 0.3s ease;
+        /* transition: all 0.3s ease; */
         position: relative;
         overflow: hidden;
     }
@@ -129,12 +129,9 @@
         font-size: 0.9rem;
         letter-spacing: 0.5px;
     }
-    .table tbody tr {
-        transition: all 0.3s ease;
-    }
     .table tbody tr:hover {
         background-color: #f8f9fa;
-        transform: scale(1.01);
+        /* transform: scale(1.01); */
     }
     .table td {
         padding: 1rem;
@@ -161,7 +158,7 @@
         transition: all 0.3s ease;
     }
     .badge:hover {
-        transform: translateY(-2px);
+        /* transform: translateY(-2px); */
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     }
     
@@ -177,7 +174,7 @@
     }
     .user-link:hover {
         color: #224abe;
-        transform: translateX(5px);
+        /* transform: translateX(5px); */
     }
     .user-link img {
         border: 2px solid #fff;
@@ -185,7 +182,7 @@
         transition: all 0.3s ease;
     }
     .user-link:hover img {
-        transform: scale(1.1);
+        /* transform: scale(1.1); */
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     }
     
@@ -203,19 +200,12 @@
         color: #4e73df;
     }
     
-    /* Animation Classes */
-    .fade-in {
-        animation: fadeIn 0.5s ease-in-out;
-    }
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+    /* Animation Classes - Removed to prevent blinking */
 </style>
 {% endblock %}
 
 {% block admin_content %}
-<div class="container-fluid py-4 fade-in">
+<div class="container-fluid py-4">
     <h2 class="mb-4 d-flex align-items-center">
         <span class="bg-gradient-primary p-3 rounded-circle me-3 text-white">
             <i class="fas fa-chart-line"></i>
@@ -297,7 +287,7 @@
             
             <div class="tab-content mt-3" id="interactionTabsContent">
                 <!-- Profile Views -->
-                <div class="tab-pane fade show active" id="profile-views" role="tabpanel">
+                <div class="tab-pane show active" id="profile-views" role="tabpanel">
                     <div class="card shadow-sm">
                         <div class="card-body">
                             <div class="table-container">
@@ -315,21 +305,25 @@
                                         <tr>
                                             <td>
                                                 <a href="{{ url_for('profile', user_id=view.viewer.id) }}" class="user-link">
-                                                    <img src="{{ url_for('static', filename=view.viewer.photo) if view.viewer.photo else url_for('static', filename='img/default-avatar.svg') }}" 
-                                                         class="rounded-circle me-2" width="30" height="30">
+                                                    <img src="{{ view.viewer.get_profile_pic_url() }}" 
+                                                         class="rounded-circle me-2" width="30" height="30" 
+                                                         onerror="this.onerror=null; this.src='/static/images/default-avatar.png';"
+                                                         loading="lazy">
                                                     {{ view.viewer.full_name }}
                                                 </a>
                                             </td>
                                             <td>
                                                 <a href="{{ url_for('profile', user_id=view.viewed.id) }}" class="user-link">
-                                                    <img src="{{ url_for('static', filename=view.viewed.photo) if view.viewed.photo else url_for('static', filename='img/default-avatar.svg') }}" 
-                                                         class="rounded-circle me-2" width="30" height="30">
+                                                    <img src="{{ view.viewed.get_profile_pic_url() }}" 
+                                                         class="rounded-circle me-2" width="30" height="30" 
+                                                         onerror="this.onerror=null; this.src='/static/images/default-avatar.png';"
+                                                         loading="lazy">
                                                     {{ view.viewed.full_name }}
                                                 </a>
                                             </td>
                                             <td class="timestamp">
                                                 <i class="far fa-clock me-1"></i>
-                                                {{ view.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                                                {{ view.timestamp.strftime('%Y-%m-%d %H:%M:%S') if view.timestamp else 'N/A' }}
                                             </td>
                                         </tr>
                                         {% endfor %}
@@ -341,7 +335,7 @@
                 </div>
                 
                 <!-- Messages -->
-                <div class="tab-pane fade" id="messages" role="tabpanel">
+                <div class="tab-pane" id="messages" role="tabpanel">
                     <div class="card shadow-sm">
                         <div class="card-body">
                             <div class="table-container">
@@ -359,21 +353,25 @@
                                         <tr>
                                             <td>
                                                 <a href="{{ url_for('profile', user_id=msg.sender.id) }}" class="user-link">
-                                                    <img src="{{ url_for('static', filename=msg.sender.photo) if msg.sender and msg.sender.photo else url_for('static', filename='img/default-avatar.svg') }}" 
-                                                         class="rounded-circle me-2" width="30" height="30">
+                                                    <img src="{{ msg.sender.get_profile_pic_url() if msg.sender else '/static/images/default-avatar.png' }}" 
+                                                         class="rounded-circle me-2" width="30" height="30" 
+                                                         onerror="this.onerror=null; this.src='/static/images/default-avatar.png';"
+                                                         loading="lazy">
                                                     {{ msg.sender.full_name if msg.sender else 'Unknown User' }}
                                                 </a>
                                             </td>
                                             <td>
                                                 <a href="{{ url_for('profile', user_id=msg.receiver.id) }}" class="user-link">
-                                                    <img src="{{ url_for('static', filename=msg.receiver.photo) if msg.receiver and msg.receiver.photo else url_for('static', filename='img/default-avatar.svg') }}" 
-                                                         class="rounded-circle me-2" width="30" height="30">
+                                                    <img src="{{ msg.receiver.get_profile_pic_url() if msg.receiver else '/static/images/default-avatar.png' }}" 
+                                                         class="rounded-circle me-2" width="30" height="30" 
+                                                         onerror="this.onerror=null; this.src='/static/images/default-avatar.png';"
+                                                         loading="lazy">
                                                     {{ msg.receiver.full_name if msg.receiver else 'Unknown User' }}
                                                 </a>
                                             </td>
                                             <td class="timestamp">
                                                 <i class="far fa-clock me-1"></i>
-                                                {{ msg.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                                                {{ msg.timestamp.strftime('%Y-%m-%d %H:%M:%S') if msg.timestamp else 'N/A' }}
                                             </td>
                                         </tr>
                                         {% endfor %}
@@ -385,7 +383,7 @@
                 </div>
                 
                 <!-- Calls -->
-                <div class="tab-pane fade" id="calls" role="tabpanel">
+                <div class="tab-pane" id="calls" role="tabpanel">
                     <div class="card shadow-sm">
                         <div class="card-body">
                             <div class="table-container">
@@ -403,21 +401,25 @@
                                             <tr>
                                                 <td>
                                                     <a href="{{ url_for('profile', user_id=call.caller.id) }}" class="user-link">
-                                                        <img src="{{ url_for('static', filename=call.caller.photo) if call.caller and call.caller.photo else url_for('static', filename='img/default-avatar.svg') }}" 
-                                                             class="rounded-circle me-2" width="30" height="30">
+                                                        <img src="{{ call.caller.get_profile_pic_url() if call.caller else '/static/images/default-avatar.png' }}" 
+                                                             class="rounded-circle me-2" width="30" height="30" 
+                                                             onerror="this.onerror=null; this.src='/static/images/default-avatar.png';"
+                                                             loading="lazy">
                                                         {{ call.caller.full_name if call.caller else 'Unknown User' }}
                                                     </a>
                                                 </td>
                                                 <td>
                                                     <a href="{{ url_for('profile', user_id=call.callee.id) }}" class="user-link">
-                                                        <img src="{{ url_for('static', filename=call.callee.photo) if call.callee and call.callee.photo else url_for('static', filename='img/default-avatar.svg') }}" 
-                                                             class="rounded-circle me-2" width="30" height="30">
+                                                        <img src="{{ call.callee.get_profile_pic_url() if call.callee else '/static/images/default-avatar.png' }}" 
+                                                             class="rounded-circle me-2" width="30" height="30" 
+                                                             onerror="this.onerror=null; this.src='/static/images/default-avatar.png';"
+                                                             loading="lazy">
                                                         {{ call.callee.full_name if call.callee else 'Unknown User' }}
                                                     </a>
                                                 </td>
                                                 <td class="timestamp">
                                                     <i class="far fa-clock me-1"></i>
-                                                    {{ call.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                                                    {{ call.timestamp.strftime('%Y-%m-%d %H:%M:%S') if call.timestamp else 'N/A' }}
                                                 </td>
                                             </tr>
                                             {% else %}
@@ -440,7 +442,10 @@
     </div>
 </div>
 
+{% endblock %}
+
 {% block extra_js %}
+{{ super() }}
 <script>
 // Initialize tooltips
 var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
@@ -457,6 +462,4 @@ tabElms.forEach(function(tabEl) {
     });
 });
 </script>
-{% endblock %}
-
 {% endblock %}
