@@ -1,0 +1,963 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Welcome to FueTime') }}{% endblock %}
+
+{% block meta_description %}FueTime connects skilled professionals with clients. Find trusted service providers for all your needs - from electricians and plumbers to carpenters and more.{% endblock %}
+
+{% block styles %}
+<style>
+/* Hero Section Styles */
+.hero-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    margin-top: -17px;
+    padding-top: 17px;
+}
+
+.hero-particles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.particle {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    animation: float 20s infinite ease-in-out;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    33% { transform: translateY(-30px) rotate(120deg); }
+    66% { transform: translateY(30px) rotate(240deg); }
+}
+
+.hero-content {
+    position: relative;
+    z-index: 10;
+    color: white;
+}
+
+.hero-title {
+    font-size: 3.5rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    animation: fadeInUp 1s ease-out;
+}
+
+.hero-subtitle {
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+    opacity: 0.9;
+    animation: fadeInUp 1s ease-out 0.2s both;
+}
+
+.hero-description {
+    font-size: 1.1rem;
+    margin-bottom: 3rem;
+    opacity: 0.8;
+    max-width: 600px;
+    animation: fadeInUp 1s ease-out 0.4s both;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* CTA Buttons */
+.cta-buttons {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    animation: fadeInUp 1s ease-out 0.6s both;
+}
+
+.cta-button {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 50px;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: none;
+    cursor: pointer;
+}
+
+.cta-button i {
+    font-size: 1rem;
+}
+
+.cta-button span {
+    color: inherit;
+}
+
+.cta-button-primary {
+    background: white;
+    color: #667eea;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.cta-button-primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+    color: #667eea;
+}
+
+.cta-button-secondary {
+    background: rgba(255, 255, 255, 0.9);
+    color: #333333;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    backdrop-filter: none;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    text-shadow: none;
+}
+
+.cta-button-secondary:hover {
+    background: rgba(255, 255, 255, 1);
+    border-color: rgba(255, 255, 255, 1);
+    transform: translateY(-3px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+    color: #333333;
+    text-shadow: none;
+}
+
+/* Features Section */
+.features-section {
+    padding: 5rem 0;
+    background: #f8f9fa;
+}
+
+.feature-card {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    text-align: center;
+    height: 100%;
+    transition: all 0.3s ease;
+    border: 1px solid #e9ecef;
+}
+
+.feature-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+.feature-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2rem;
+}
+
+.feature-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #333;
+}
+
+.feature-description {
+    color: #666;
+    line-height: 1.6;
+}
+
+/* How It Works Section */
+.how-it-works {
+    padding: 5rem 0;
+    background: white;
+}
+
+.step-card {
+    text-align: center;
+    padding: 2rem;
+    position: relative;
+}
+
+.step-number {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 auto 1.5rem;
+}
+
+.step-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #333;
+}
+
+.step-description {
+    color: #666;
+    line-height: 1.6;
+}
+
+/* Categories Section */
+.categories-section {
+    padding: 5rem 0;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.categories-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="%23dee2e6" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+    opacity: 0.03;
+    pointer-events: none;
+}
+
+.category-card {
+    background: white;
+    border-radius: 20px;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: 2px solid transparent;
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transform: translateY(0);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.category-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    z-index: 1;
+}
+
+.category-card:hover::before {
+    opacity: 1;
+}
+
+.category-card:hover {
+    transform: translateY(-15px) scale(1.05);
+    box-shadow: 0 25px 50px rgba(102, 126, 234, 0.3);
+    border-color: transparent;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+}
+
+.category-icon {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 2.5rem;
+    position: relative;
+    z-index: 2;
+    transition: all 0.4s ease;
+    box-shadow: 0 15px 35px rgba(102, 126, 234, 0.3);
+}
+
+.category-card:hover .category-icon {
+    transform: scale(1.1) rotate(5deg);
+    box-shadow: 0 20px 45px rgba(102, 126, 234, 0.4);
+}
+
+.category-icon i {
+    transition: all 0.4s ease;
+}
+
+.category-card:hover .category-icon i {
+    transform: scale(1.2);
+    animation: iconPulse 2s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+    0%, 100% { transform: scale(1.2); }
+    50% { transform: scale(1.3); }
+}
+
+.category-name {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin: 0;
+    position: relative;
+    z-index: 2;
+    transition: all 0.4s ease;
+}
+
+.category-card:hover .category-name {
+    color: #667eea;
+    transform: translateY(-2px);
+}
+
+/* Category badge */
+.category-badge {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    z-index: 3;
+    animation: badgeFloat 3s ease-in-out infinite;
+}
+
+@keyframes badgeFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+/* Enhanced grid layout */
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    padding: 2rem 0;
+}
+
+/* Section header enhancement */
+.categories-section .section-header {
+    text-align: center;
+    margin-bottom: 4rem;
+    position: relative;
+}
+
+.categories-section .section-title {
+    font-size: 3.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.categories-section .section-subtitle {
+    font-size: 1.3rem;
+    color: #6c757d;
+    font-weight: 300;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .category-card {
+        padding: 1.5rem 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .category-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5rem;
+    }
+    
+    .category-name {
+        font-size: 0.95rem;
+    }
+    
+    .categories-section .section-title {
+        font-size: 2.5rem;
+    }
+    
+    .categories-section .section-subtitle {
+        font-size: 1.1rem;
+    }
+    
+    .category-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        padding: 1rem 0;
+    }
+    
+    .category-badge {
+        font-size: 0.65rem;
+        padding: 0.2rem 0.6rem;
+        top: 0.5rem;
+        right: 0.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .category-card {
+        padding: 1rem 0.75rem;
+    }
+    
+    .category-icon {
+        width: 50px;
+        height: 50px;
+        font-size: 1.3rem;
+    }
+    
+    .category-name {
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    
+    .category-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+        padding: 0.75rem 0;
+    }
+    
+    .category-badge {
+        font-size: 0.6rem;
+        padding: 0.15rem 0.5rem;
+    }
+}
+
+/* Stats Section */
+.stats-section {
+    padding: 5rem 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.stat-card {
+    text-align: center;
+    padding: 2rem;
+}
+
+.stat-number {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .hero-title {
+        font-size: 2.5rem;
+    }
+    
+    .hero-subtitle {
+        font-size: 1.2rem;
+    }
+    
+    .cta-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .cta-button {
+        width: 100%;
+        max-width: 300px;
+        justify-content: center;
+    }
+}
+
+/* Smooth scroll behavior */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Animation for sections on scroll */
+.fade-in-section {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.8s ease;
+}
+
+.fade-in-section.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="hero-particles" id="particles"></div>
+    <div class="container">
+        <div class="hero-content">
+            <h1 class="hero-title">{{ _('Find Trusted Professionals Near You') }}</h1>
+            <p class="hero-subtitle">{{ _('Connect with skilled service providers in your area') }}</p>
+            <p class="hero-description">
+                {{ _('FueTime makes it easy to find and hire reliable professionals for all your needs. From home repairs to specialized services, discover verified experts ready to help.') }}
+            </p>
+            <div class="cta-buttons">
+                <a href="{{ url_for('main.user_profiles') }}" class="cta-button cta-button-primary">
+                    <i class="fas fa-users"></i>
+                    {{ _('Browse Professionals') }}
+                </a>
+                <a href="{{ url_for('help') }}" class="cta-button cta-button-secondary">
+                    <i class="fas fa-info-circle"></i>
+                    {{ _('Learn More') }}
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="features-section fade-in-section">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="display-4 fw-bold mb-3">{{ _('Why Choose FueTime?') }}</h2>
+            <p class="lead text-muted">{{ _('Discover the benefits of our trusted platform') }}</p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3 class="feature-title">{{ _('Verified Professionals') }}</h3>
+                    <p class="feature-description">
+                        {{ _('All service providers are thoroughly vetted and verified to ensure quality and reliability for your peace of mind.') }}
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <h3 class="feature-title">{{ _('Location-Based Search') }}</h3>
+                    <p class="feature-description">
+                        {{ _('Find professionals near your location with our smart filtering system. Get services when and where you need them.') }}
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <h3 class="feature-title">{{ _('Rated & Reviewed') }}</h3>
+                    <p class="feature-description">
+                        {{ _('Make informed decisions with authentic reviews and ratings from real customers in your community.') }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- How It Works Section -->
+<section class="how-it-works fade-in-section">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="display-4 fw-bold mb-3">{{ _('How It Works') }}</h2>
+            <p class="lead text-muted">{{ _('Get started in just 4 simple steps') }}</p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-3">
+                <div class="step-card">
+                    <div class="step-number">1</div>
+                    <h3 class="step-title">{{ _('Search') }}</h3>
+                    <p class="step-description">
+                        {{ _('Browse through our extensive network of professionals by skill, location, or availability.') }}
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="step-card">
+                    <div class="step-number">2</div>
+                    <h3 class="step-title">{{ _('Compare') }}</h3>
+                    <p class="step-description">
+                        {{ _('Review profiles, check ratings, read reviews, and compare prices to find the perfect match.') }}
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="step-card">
+                    <div class="step-number">3</div>
+                    <h3 class="step-title">{{ _('Connect') }}</h3>
+                    <p class="step-description">
+                        {{ _('Send messages, discuss your requirements, and get quotes directly from the professionals.') }}
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="step-card">
+                    <div class="step-number">4</div>
+                    <h3 class="step-title">{{ _('Hire') }}</h3>
+                    <p class="step-description">
+                        {{ _('Hire professionals for your services quickly and confidently through our secure platform and track the progress of your project.') }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Categories Section -->
+<section class="categories-section fade-in-section">
+    <div class="container">
+        <div class="section-header">
+            <h2 class="section-title">{{ _('Popular Categories') }}</h2>
+            <p class="section-subtitle">{{ _('Explore services across multiple categories') }}</p>
+        </div>
+        <div class="category-grid">
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Electrician" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Hot') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Electricians') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Plumber" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Top') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-wrench"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Plumbers') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Software Developer" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Trending') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Software Developers') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Carpenter" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('New') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-hammer"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Carpenters') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Painter" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Popular') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-paint-brush"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Painters') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Mechanic" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Expert') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-car"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Mechanics') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Web Designer" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Creative') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-palette"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Web Designers') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Cleaner" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Pro') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-broom"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Cleaners') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Gardener" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Green') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-leaf"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Gardeners') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Technician" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Tech') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-tools"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Technicians') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Chef" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Food') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-utensils"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Chefs') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Photographer" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Art') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-camera"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Photographers') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Tutor" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Learn') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Tutors') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Personal Trainer" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Fit') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-dumbbell"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Personal Trainers') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Driver" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Move') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-truck"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Drivers') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Tailor" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Style') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-cut"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Tailors') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Beautician" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Beauty') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-spa"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Beauticians') }}</h4>
+                </a>
+            </div>
+            <div class="category-item">
+                <a href="{{ url_for('main.user_profiles') }}?query=Event Planner" class="category-card text-decoration-none">
+                    <div class="category-badge">{{ _('Party') }}</div>
+                    <div class="category-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <h4 class="category-name">{{ _('Event Planners') }}</h4>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Stats Section -->
+<section class="stats-section fade-in-section">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" data-target="1000">0</div>
+                    <div class="stat-label">{{ _('Verified Professionals') }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" data-target="50">0</div>
+                    <div class="stat-label">{{ _('Service Categories') }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" data-target="5000">0</div>
+                    <div class="stat-label">{{ _('Happy Customers') }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-number" data-target="98">0</div>
+                    <div class="stat-label">{{ '% Satisfaction' }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="features-section fade-in-section">
+    <div class="container">
+        <div class="text-center">
+            <h2 class="display-4 fw-bold mb-3">{{ _('Ready to Get Started?') }}</h2>
+            <p class="lead text-muted mb-4">{{ _('Join thousands of satisfied Professionals who trust FueTime for their service needs') }}</p>
+            <div class="cta-buttons justify-content-center">
+                <a href="{{ url_for('main.user_profiles') }}" class="cta-button cta-button-primary">
+                    <i class="fas fa-search"></i>
+                    {{ _('Find Professionals Now') }}
+                </a>
+                <a href="{{ url_for('register') }}" class="cta-button cta-button-secondary">
+                    <i class="fas fa-user-plus"></i>
+                    {{ _('Join as Professional') }}
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Create floating particles
+function createParticles() {
+    const particlesContainer = document.getElementById('particles');
+    const particleCount = 50;
+    
+    for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        
+        // Random size
+        const size = Math.random() * 5 + 2;
+        particle.style.width = size + 'px';
+        particle.style.height = size + 'px';
+        
+        // Random position
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.top = Math.random() * 100 + '%';
+        
+        // Random animation delay
+        particle.style.animationDelay = Math.random() * 20 + 's';
+        particle.style.animationDuration = (Math.random() * 20 + 20) + 's';
+        
+        particlesContainer.appendChild(particle);
+    }
+}
+
+// Animate numbers
+function animateNumbers() {
+    const numbers = document.querySelectorAll('.stat-number');
+    
+    numbers.forEach(number => {
+        const target = parseInt(number.getAttribute('data-target'));
+        const increment = target / 100;
+        let current = 0;
+        
+        const updateNumber = () => {
+            current += increment;
+            if (current < target) {
+                number.textContent = Math.ceil(current);
+                requestAnimationFrame(updateNumber);
+            } else {
+                number.textContent = target;
+            }
+        };
+        
+        updateNumber();
+    });
+}
+
+// Intersection Observer for fade-in animations
+function setupScrollAnimations() {
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    };
+    
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible');
+                
+                // Trigger number animation when stats section is visible
+                if (entry.target.querySelector('.stat-number')) {
+                    animateNumbers();
+                }
+            }
+        });
+    }, observerOptions);
+    
+    document.querySelectorAll('.fade-in-section').forEach(section => {
+        observer.observe(section);
+    });
+}
+
+// Initialize everything when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    createParticles();
+    setupScrollAnimations();
+});
+
+// Smooth scroll for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+            target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

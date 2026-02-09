@@ -849,7 +849,7 @@ def login():
             'debug': current_app.debug  # Only include in development
         }), 500
 
-@api_bp.route('/api/calculate-distance', methods=['GET', 'POST'])
+@api_bp.route('/calculate-distance', methods=['GET', 'POST'])
 @jwt_required(optional=True)  # Make JWT optional for flexibility
 @cross_origin()  # Enable CORS for Flutter
 @limiter.limit("100 per day")  # Add rate limiting
@@ -956,6 +956,13 @@ def calculate_distance_endpoint():
         
         # Calculate distance in kilometers
         distance_km = calculate_distance(from_coords, to_coords)
+        if distance_km is None:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to calculate distance between coordinates',
+                'from_location': from_location,
+                'to_location': to_location
+            }), 500
         distance_mi = distance_km * 0.621371  # Convert to miles
         
         # Format distance display
@@ -1000,9 +1007,12 @@ def calculate_distance_endpoint():
         if response_format == 'simple':
             return jsonify({
                 'success': True,
-        
-            'details': str(ve)
-        }), 400
+                'distance': distance_value,
+                'unit': unit
+            })
+        else:
+            # Return full response
+            return jsonify(response)
     except Exception as e:
         error_msg = f"Error calculating distance: {str(e)}"
         current_app.logger.error(error_msg, exc_info=True)

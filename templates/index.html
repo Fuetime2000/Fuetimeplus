@@ -635,7 +635,7 @@ async function loadMoreUsers() {
         // Update page parameter or add it if it doesn't exist
         urlParams.set('page', nextPage);
         
-        const response = await fetch(`/?${urlParams.toString()}`, {
+        const response = await fetch(`/professionals?${urlParams.toString()}`, {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/json'

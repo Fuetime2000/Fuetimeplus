@@ -7,20 +7,37 @@ bp = Blueprint('main', __name__)
 
 @bp.route('/')
 def index():
-    """Main landing page with pagination support"""
+    """Landing page"""
+    return render_template('landing.html')
+
+@bp.route('/professionals')
+def user_profiles():
+    """User profiles page with pagination support"""
     try:
         page = request.args.get('page', 1, type=int)
         per_page = 12  # Number of users per page
+        query = request.args.get('query', '').strip()
         
         # Log the request
-        current_app.logger.info(f"Processing request for page {page}")
+        current_app.logger.info(f"Processing request for page {page}, query: '{query}'")
         
-        # Debug: Log all users in the database
-        all_users = User.query.all()
-        current_app.logger.debug(f"Users in database: {[{'id': u.id, 'email': u.email, 'active': u.active} for u in all_users]}")
+        # Start building the query
+        users_query = User.query.filter(User.active == True)
         
-        # Query for active users with pagination
-        users_pagination = User.query.filter(User.active == True).order_by(User.created_at.desc()).paginate(
+        # Apply search filter if query is provided
+        if query:
+            search = f'%{query}%'
+            users_query = users_query.filter(
+                db.or_(
+                    User.full_name.ilike(search),
+                    User.skills.ilike(search),
+                    User.work.ilike(search),
+                    User.profession.ilike(search)
+                )
+            )
+        
+        # Order by creation date and paginate
+        users_pagination = users_query.order_by(User.created_at.desc()).paginate(
             page=page, per_page=per_page, error_out=False)
             
         current_app.logger.debug(f"Found {users_pagination.total} active users, page {page}/{users_pagination.pages}")
@@ -66,9 +83,10 @@ def index():
                             users=users_pagination.items, 
                             pagination=users_pagination,
                             has_more=users_pagination.has_next,
-                            now=datetime.utcnow())
+                            now=datetime.utcnow(),
+                            search_query=query)
     except Exception as e:
-        error_msg = f"Error in index route: {str(e)}"
+        error_msg = f"Error in user_profiles route: {str(e)}"
         current_app.logger.error(error_msg, exc_info=True)
         
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
