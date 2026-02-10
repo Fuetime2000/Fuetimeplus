@@ -1115,6 +1115,157 @@ Fuetime Team'''
         print(f'Error sending OTP email: {str(e)}')
         return False
 
+def send_unblock_notification_email(user_email, user_name):
+    """Send email notification to user when their account is unblocked"""
+    msg = MIMEMultipart()
+    msg['From'] = app.config['MAIL_DEFAULT_SENDER']
+    msg['To'] = user_email
+    msg['Subject'] = 'Good News: Your Fuetime Account Has Been Reactivated'
+    
+    body = f'''Dear {user_name},
+
+Great news! Your Fuetime account has been successfully reactivated by our administration team.
+
+Your account is now fully functional and you can:
+- View and update your profile
+- Receive contact requests from other users
+- Access all platform features
+- Connect with potential clients or service providers
+
+What this means:
+- Your profile is now visible to other users again
+- All account functionality has been restored
+- You can continue using Fuetime as before
+
+Next Steps:
+1. Log in to your account to verify everything is working
+2. Update your profile if needed
+3. Start connecting with other users on the platform
+
+Thank you for your patience and cooperation during the review process. We appreciate having you as part of the Fuetime community.
+
+If you have any questions or need assistance, please don't hesitate to contact our customer support team.
+
+Customer Support Contact:
+- Email: support@fuetime.com
+- Phone: +91-XXXXXXXXXX
+- Response Time: Within 24-48 hours
+
+We look forward to seeing you active on the platform again!
+
+Best regards,
+The Fuetime Customer Support Team
+https://fuetime.com
+'''
+    
+    msg.attach(MIMEText(body, 'plain'))
+    
+    try:
+        # Create server connection with SSL
+        server = smtplib.SMTP_SSL(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        server.ehlo()  # Identify ourselves to the server
+        
+        # Attempt login
+        server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
+        
+        # Send email
+        text = msg.as_string()
+        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], user_email, text)
+        
+        # Log success
+        app.logger.info(f'Unblock notification email sent successfully to {user_email}')
+        return True
+        
+    except smtplib.SMTPAuthenticationError as e:
+        app.logger.error(f'SMTP Authentication Error: {str(e)}. Please check email credentials.')
+        return False
+    except smtplib.SMTPException as e:
+        app.logger.error(f'SMTP Error: {str(e)}')
+        return False
+    except Exception as e:
+        app.logger.error(f'Unexpected error sending unblock notification email to {user_email}: {str(e)}')
+        return False
+    finally:
+        try:
+            server.quit()
+        except:
+            pass
+
+def send_block_notification_email(user_email, user_name):
+    """Send email notification to user when their account is blocked"""
+    msg = MIMEMultipart()
+    msg['From'] = app.config['MAIL_DEFAULT_SENDER']
+    msg['To'] = user_email
+    msg['Subject'] = 'Important: Your Fuetime Account Has Been Blocked'
+    
+    body = f'''Dear {user_name},
+
+We regret to inform you that your Fuetime account has been temporarily blocked by our administration team.
+
+This action has been taken due to a violation of our platform's terms of service or community guidelines.
+
+What this means:
+- Your profile is no longer visible to other users
+- You cannot receive new contact requests
+- Your account functionality is temporarily suspended
+
+What you should do:
+1. Contact our customer support team immediately to resolve this issue
+2. Provide any additional information that may help us review your case
+3. Wait for our team to review and respond to your inquiry
+
+Customer Support Contact:
+- Email: support@fuetime.com
+- Phone: +91-XXXXXXXXXX
+- Response Time: Within 24-48 hours
+
+We understand this may be inconvenient, and we're here to help resolve any issues. Our team will review your case as soon as possible.
+
+Important Note:
+- This block is temporary and can be lifted after review
+- Please do not create multiple accounts as this may result in permanent suspension
+- We value all our users and want to work with you to resolve any concerns
+
+Thank you for your patience and understanding.
+
+Best regards,
+The Fuetime Customer Support Team
+https://fuetime.com
+'''
+    
+    msg.attach(MIMEText(body, 'plain'))
+    
+    try:
+        # Create server connection with SSL
+        server = smtplib.SMTP_SSL(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        server.ehlo()  # Identify ourselves to the server
+        
+        # Attempt login
+        server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
+        
+        # Send email
+        text = msg.as_string()
+        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], user_email, text)
+        
+        # Log success
+        app.logger.info(f'Block notification email sent successfully to {user_email}')
+        return True
+        
+    except smtplib.SMTPAuthenticationError as e:
+        app.logger.error(f'SMTP Authentication Error: {str(e)}. Please check email credentials.')
+        return False
+    except smtplib.SMTPException as e:
+        app.logger.error(f'SMTP Error: {str(e)}')
+        return False
+    except Exception as e:
+        app.logger.error(f'Unexpected error sending block notification email to {user_email}: {str(e)}')
+        return False
+    finally:
+        try:
+            server.quit()
+        except:
+            pass
+
 def send_reset_email(user_email, reset_url):
     msg = MIMEMultipart()
     msg['From'] = app.config['MAIL_DEFAULT_SENDER']
@@ -3598,6 +3749,70 @@ def admin_dashboard():
 def admin_users():
     users = User.query.all()
     return render_template('admin/users.html', users=users)
+
+@app.route('/admin/user/<int:user_id>/block', methods=['POST'])
+@login_required
+@admin_required
+def admin_block_user(user_id):
+    if user_id == current_user.id:
+        return jsonify({'status': 'error', 'message': 'Cannot block your own account'}), 400
+    
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+    
+    if user.is_admin:
+        return jsonify({'status': 'error', 'message': 'Cannot block admin users'}), 400
+    
+    try:
+        user.blocked = True
+        user.active = False  # Also deactivate the user
+        db.session.commit()
+        
+        # Send email notification to the blocked user
+        email_sent = send_block_notification_email(user.email, user.full_name)
+        
+        # Log the action
+        app.logger.info(f'User {user_id} ({user.full_name}) blocked by admin {current_user.id}')
+        if email_sent:
+            app.logger.info(f'Block notification email sent to {user.email}')
+        else:
+            app.logger.warning(f'Failed to send block notification email to {user.email}')
+        
+        return jsonify({'status': 'success', 'message': 'User blocked successfully', 'email_sent': email_sent})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f'Error blocking user {user_id}: {str(e)}')
+        return jsonify({'status': 'error', 'message': 'Error blocking user'}), 500
+
+@app.route('/admin/user/<int:user_id>/unblock', methods=['POST'])
+@login_required
+@admin_required
+def admin_unblock_user(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User not found'}), 404
+    
+    try:
+        user.blocked = False
+        user.active = True  # Also reactivate the user
+        db.session.commit()
+        
+        # Send email notification to the unblocked user
+        email_sent = send_unblock_notification_email(user.email, user.full_name)
+        
+        # Log the action
+        app.logger.info(f'User {user_id} ({user.full_name}) unblocked by admin {current_user.id}')
+        if email_sent:
+            app.logger.info(f'Unblock notification email sent to {user.email}')
+        else:
+            app.logger.warning(f'Failed to send unblock notification email to {user.email}')
+        
+        return jsonify({'status': 'success', 'message': 'User unblocked successfully', 'email_sent': email_sent})
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f'Error unblocking user {user_id}: {str(e)}')
+        return jsonify({'status': 'error', 'message': 'Error unblocking user'}), 500
 
 @app.route('/admin/export-users')
 @login_required

@@ -999,24 +999,41 @@ function initializeProfileScripts() {
     <div class="row">
         <!-- Profile Card -->
         <div class="col-lg-4 mb-4">
-            <div class="card profile-card shadow-sm">
+            <div class="card profile-card shadow-sm{% if user.blocked %} blocked-profile-card{% endif %}">
                 <div class="card-body text-center">
                     {% if user.photo %}
                         {% set profile_img_url = url_for('static', filename='uploads/' + user.photo) %}
                     {% else %}
                         {% set profile_img_url = url_for('static', filename='img/default-avatar.png') %}
                     {% endif %}
-                    <div class="profile-image-container d-flex justify-content-center align-items-center">
+                    <div class="profile-image-container d-flex justify-content-center align-items-center position-relative">
                         <div class="rounded-circle overflow-hidden" style="width: 200px; height: 200px; position: relative;">
                             {% set default_avatar = url_for('static', filename='img/default-avatar.png') %}
-                            <img src="{{ profile_img_url }}" 
+                            <img src="{{ user.get_profile_pic_url() }}" 
                                  alt="{{ user.full_name }}" 
-                                 class="profile-image" 
+                                 class="profile-image{% if user.blocked %} blocked-avatar{% endif %}" 
                                  onerror="this.onerror=null; this.src='{{ default_avatar }}';" />
+                            {% if user.blocked %}
+                            <div class="blocked-profile-indicator" data-bs-toggle="tooltip" title="Blocked User">
+                                <i class="fas fa-user-slash"></i>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="text-center">
-                        <h1 class="h4 mb-0 profile-name" data-user-id="{{ user.id }}">{{ user.full_name|default('User') }}</h1>
+                        <h1 class="h4 mb-0 profile-name" data-user-id="{{ user.id }}">
+                            {{ user.full_name|default('User') }}
+                            {% if user.verified %}
+                            <span class="verified-badge ms-2" data-bs-toggle="tooltip" title="Verified User">
+                                <i class="fas fa-check-circle text-primary"></i>
+                            </span>
+                            {% endif %}
+                            {% if user.blocked %}
+                            <span class="blocked-profile-badge ms-2" data-bs-toggle="tooltip" title="Blocked User">
+                                <i class="fas fa-ban"></i> BLOCKED
+                            </span>
+                            {% endif %}
+                        </h1>
                         <p class="text-muted mb-1 profile-work" data-user-id="{{ user.id }}">{{ user.work|default('') }}</p>
                         {% if user.profession %}
                             <p class="text-muted mb-2">
@@ -1024,7 +1041,6 @@ function initializeProfileScripts() {
                             </p>
                         {% endif %}
                     </div>
-                    
                     <div class="profile-stats text-center mb-4">
                         <div class="row">
                             <div class="col">
@@ -1489,6 +1505,12 @@ function initializeProfileScripts() {
                             <i class="far fa-comment-alt fa-3x text-muted opacity-50"></i>
                         </div>
                         <p class="text-muted mb-0">No reviews yet</p>
+                        <p class="text-muted mb-1 profile-work" data-user-id="{{ user.id }}">{{ user.work|default('') }}</p>
+                        {% if user.profession %}
+                            <p class="text-muted mb-2">
+                                <i class="fas fa-briefcase me-1"></i>{{ user.profession }}
+                            </p>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>

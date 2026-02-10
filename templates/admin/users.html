@@ -13,11 +13,16 @@
 
     <div class="users-grid">
         {% for user in users %}
-        <div class="user-card" data-user-id="{{ user.id }}" data-user-name="{{ user.full_name }}" data-user-email="{{ user.email }}">
+        <div class="user-card{% if user.blocked %} blocked{% endif %}" data-user-id="{{ user.id }}" data-user-name="{{ user.full_name }}" data-user-email="{{ user.email }}">
             <div class="user-card-header">
                 <div class="user-avatar">
-                    <img src="{{ url_for('static', filename='uploads/' + user.photo) if user.photo else url_for('static', filename='img/default-avatar.svg') }}" alt="{{ user.full_name }}" class="user-avatar-img">
+                    <img src="{{ user.get_profile_pic_url() }}" alt="{{ user.full_name }}" class="user-avatar-img">
                     <span class="status-indicator status-{{ user.availability }}"></span>
+                    {% if user.blocked %}
+                    <span class="blocked-indicator" data-bs-toggle="tooltip" title="Blocked">
+                        <i class="fas fa-user-slash"></i>
+                    </span>
+                    {% endif %}
                 </div>
                 <div class="user-info">
                     <div class="d-flex align-items-center">
@@ -26,6 +31,9 @@
                         <span class="badge bg-primary ms-2" data-bs-toggle="tooltip" title="Verified User">
                             <i class="fas fa-check-circle"></i> Verified
                         </span>
+                        {% endif %}
+                        {% if user.blocked %}
+                        <span class="blocked-status-text">BLOCKED</span>
                         {% endif %}
                     </div>
                     <p class="user-email">{{ user.email }}</p>
@@ -62,6 +70,15 @@
                     <button class="btn btn-info btn-sm" onclick="sendMessage('{{ user.id }}')" title="{{ _('Message User') }}">
                         <i class="fas fa-envelope"></i>
                     </button>
+                    {% if user.blocked %}
+                    <button class="btn btn-success btn-sm" onclick="unblockUser('{{ user.id }}', '{{ user.full_name }}')" title="{{ _('Unblock User') }}">
+                        <i class="fas fa-user-check"></i>
+                    </button>
+                    {% else %}
+                    <button class="btn btn-warning btn-sm" onclick="blockUser('{{ user.id }}', '{{ user.full_name }}')" title="{{ _('Block User') }}">
+                        <i class="fas fa-user-slash"></i>
+                    </button>
+                    {% endif %}
                     <button class="btn btn-warning btn-sm" onclick="toggleStatus('{{ user.id }}')" title="{{ _('Toggle Status') }}">
                         <i class="fas fa-toggle-on"></i>
                     </button>
@@ -88,6 +105,50 @@
     }
     .btn-verify {
         min-width: 32px;
+    }
+    .blocked-indicator {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #dc3545;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        border: 2px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .user-avatar {
+        position: relative;
+    }
+    .user-card {
+        display: block !important; /* Ensure all user cards are visible */
+        /* Other existing styles... */
+    }
+    .user-card.blocked {
+        /* opacity: 0.7; */ /* Don't hide the card completely */
+        border: 1px solid #dc3545;
+        background-color: #fff5f5; /* Light red background for blocked users */
+    }
+    .user-card.blocked .user-avatar-img {
+        /* filter: grayscale(100%); */ /* Don't grayscale the avatar */
+        border: 2px solid #dc3545; /* Red border for blocked users */
+    }
+    .blocked-status-text {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: #dc3545;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 12px;
+        z-index: 10;
     }
 </style>
 {% endblock %}
@@ -146,7 +207,20 @@ $(document).ready(function() {
         $('.user-card').filter(function() {
             const userData = $(this).data('user-name').toLowerCase() + ' ' +
                            $(this).data('user-email').toLowerCase();
-            $(this).toggle(userData.indexOf(value) > -1);
+            // Always show blocked users in search results
+            const isBlocked = $(this).hasClass('blocked');
+            if (isBlocked && value.length > 0) {
+                // If searching and user is blocked, show them
+                const userName = $(this).data('user-name').toLowerCase();
+                const userEmail = $(this).data('user-email').toLowerCase();
+                return userName.includes(value) || userEmail.includes(value);
+            } else if (!isBlocked) {
+                // If not blocked, normal search
+                return userData.indexOf(value) > -1;
+            } else {
+                // If not searching, show all blocked users
+                return true;
+            }
         });
     });
 
@@ -158,6 +232,58 @@ $(document).ready(function() {
 function sendMessage(userId) {
     // Implement message functionality
     console.log('Send message to user:', userId);
+}
+
+// Block user
+function blockUser(userId, userName) {
+    if (confirm(`Are you sure you want to block user: ${userName}? This will prevent them from accessing the platform.`)) {
+        fetch(`/admin/user/${userId}/block`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Update the UI
+                location.reload(); // Simple reload to show updated state
+            } else {
+                alert(`Error: ${data.message || 'Failed to block user'}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error blocking user:', error);
+            alert('Error: Failed to block user');
+        });
+    }
+}
+
+// Unblock user
+function unblockUser(userId, userName) {
+    if (confirm(`Are you sure you want to unblock user: ${userName}?`)) {
+        fetch(`/admin/user/${userId}/unblock`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Update the UI
+                location.reload(); // Simple reload to show updated state
+            } else {
+                alert(`Error: ${data.message || 'Failed to unblock user'}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error unblocking user:', error);
+            alert('Error: Failed to unblock user');
+        });
+    }
 }
 
 // Toggle user status

@@ -48,6 +48,7 @@ class User(Base, UserMixin):
     authenticated = db.Column(db.Boolean, default=False)
     email_verified = db.Column(db.Boolean, default=False)
     phone_verified = db.Column(db.Boolean, default=False)
+    blocked = db.Column(db.Boolean, default=False)
     verified = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
     email_otp = db.Column(db.String(6))
     phone_otp = db.Column(db.String(6))
