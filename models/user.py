@@ -114,12 +114,18 @@ class User(Base, UserMixin):
             import os
             from flask import current_app
             
+            # First check profile_pics subdirectory
             photo_path = os.path.join(current_app.root_path, 'static', 'uploads', 'profile_pics', self.photo)
             if os.path.exists(photo_path):
                 return f"/profile_pic/{self.photo}"
+            
+            # Then check main uploads directory for backward compatibility
+            photo_path_main = os.path.join(current_app.root_path, 'static', 'uploads', self.photo)
+            if os.path.exists(photo_path_main):
+                return f"/profile_pic/{self.photo}"
         
         # Return a default avatar URL if no photo is set or file doesn't exist
-        return "/static/images/default-avatar.png"
+        return "/static/img/default-avatar.png"
     
     @property
     def is_authenticated(self):
