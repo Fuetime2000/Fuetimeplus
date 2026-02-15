@@ -852,6 +852,76 @@ function toggleUserFields() {
 
 // Initialize form fields based on default selection
 document.addEventListener('DOMContentLoaded', function() {
+    // Check for user data from chatbot
+    const userData = localStorage.getItem('fueTimeUserData');
+    if (userData) {
+        try {
+            const data = JSON.parse(userData);
+            
+            // Populate form fields
+            if (data.name) {
+                document.getElementById('full_name').value = data.name;
+            }
+            if (data.email) {
+                document.getElementById('email').value = data.email;
+            }
+            if (data.mobile) {
+                document.getElementById('phone').value = data.mobile;
+            }
+            if (data.skills) {
+                // Try to match skills with existing options
+                const workSelect = document.getElementById('work');
+                const options = workSelect.options;
+                
+                // Look for matching skill in existing options
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].value.toLowerCase().includes(data.skills.toLowerCase()) || 
+                        data.skills.toLowerCase().includes(options[i].value.toLowerCase())) {
+                        workSelect.value = options[i].value;
+                        
+                        // Trigger Select2 update
+                        $(workSelect).trigger('change');
+                        break;
+                    }
+                }
+                
+                // If no match found, you could add it as a new option
+                if (!workSelect.value) {
+                    const newOption = new Option(data.skills, data.skills);
+                    workSelect.add(newOption);
+                    workSelect.value = data.skills;
+                    $(workSelect).trigger('change');
+                }
+            }
+            
+            // Clear the localStorage after populating
+            localStorage.removeItem('fueTimeUserData');
+            
+            // Show success message
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show';
+            alertDiv.innerHTML = `
+                <i class="fas fa-check-circle me-2"></i>
+                Your information has been pre-filled from the AI Assistant!
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            // Insert at the top of the form
+            const form = document.getElementById('registrationForm');
+            form.parentNode.insertBefore(alertDiv, form);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.parentNode.removeChild(alertDiv);
+                }
+            }, 5000);
+            
+        } catch (e) {
+            console.error('Error parsing user data:', e);
+        }
+    }
+    
     // Initialize Select2 for work profession dropdown
     $('.select2').select2({
         theme: 'bootstrap-5',
