@@ -28,6 +28,7 @@ def verify_refresh_token():
 # For backward compatibility
 jwt_refresh_token_required = jwt_required(refresh=True)
 from werkzeug.security import generate_password_hash, check_password_hash
+import traceback
 from werkzeug.utils import secure_filename
 from datetime import timedelta, datetime
 import re
@@ -1818,6 +1819,15 @@ def add_to_wallet():
             
             # Commit the transaction
             db_session.commit()
+            
+            # Send email notification to user about wallet balance addition
+            try:
+                # Import the email function from main app
+                from app import send_wallet_balance_email
+                send_wallet_balance_email(user, amount, new_balance)
+                current_app.logger.info(f'Wallet balance email sent to {user.email}')
+            except Exception as e:
+                current_app.logger.error(f'Error sending wallet balance email: {str(e)}')
             
             return jsonify({
                 'status': 'success',

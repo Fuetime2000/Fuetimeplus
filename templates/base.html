@@ -63,6 +63,13 @@
                             <i class="fas fa-question-circle"></i> {{ _('Help') }}
                         </a>
                     </li>
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('help') }}#create-ticket">
+                            <i class="fas fa-plus-circle"></i> {{ _('Create Ticket') }}
+                        </a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('donate') }}">
                             <i class="fas fa-heart text-danger"></i> {{ _('Donate') }}

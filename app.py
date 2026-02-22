@@ -152,14 +152,14 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///fuetime.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'o3#7n4@43y0ry5j4@2me+nn@vbu32rr=w7mz)1yzz7egy^)qn*'
 
-# Email configuration - Using SSL on port 465
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 465  # SSL port
-app.config['MAIL_USE_TLS'] = False
-app.config['MAIL_USE_SSL'] = True
-app.config['MAIL_USERNAME'] = 'verify.fuetime@gmail.com'  # Your Gmail address
-app.config['MAIL_PASSWORD'] = 'kric osob lmdv czaf'  # Your App Password
-app.config['MAIL_DEFAULT_SENDER'] = 'verify.fuetime@gmail.com'  # Your Gmail address
+# Email configuration - Load from environment variables
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'email-smtp.eu-north-1.amazonaws.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
+app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', 'false').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@fuetime.com')  # Your SES verified email
 app.config['MAIL_DEBUG'] = True  # Enable debug output
 
 # Initialize Flask-Mail
@@ -1062,46 +1062,303 @@ def generate_otp():
     # Generate a 6-digit OTP
     return ''.join(random.choices(string.digits, k=6))
 
+def create_professional_email_template(subject, content, footer_text=None):
+    """Create a professional HTML email template with spam-safe footer"""
+    
+    # Default footer text if not provided
+    if not footer_text:
+        footer_text = "This is an automated message from Fuetime. Please do not reply to this email."
+    
+    template = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="format-detection" content="telephone=no">
+        <title>{subject}</title>
+        <style>
+            * {{
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }}
+            
+            body {{
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
+                color: #333333;
+                background-color: #f4f4f4;
+                margin: 0;
+                padding: 20px;
+            }}
+            
+            .email-container {{
+                max-width: 600px;
+                margin: 0 auto;
+                background-color: #ffffff;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                overflow: hidden;
+            }}
+            
+            .header {{
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 30px 40px;
+                text-align: center;
+            }}
+            
+            .logo {{
+                font-size: 28px;
+                font-weight: bold;
+                color: #ffffff;
+                margin-bottom: 10px;
+                letter-spacing: 1px;
+            }}
+            
+            .tagline {{
+                color: rgba(255,255,255,0.9);
+                font-size: 14px;
+            }}
+            
+            .content {{
+                padding: 40px;
+            }}
+            
+            .content h1 {{
+                color: #2c3e50;
+                font-size: 24px;
+                margin-bottom: 20px;
+                font-weight: 600;
+            }}
+            
+            .content p {{
+                margin-bottom: 16px;
+                font-size: 16px;
+                line-height: 1.6;
+            }}
+            
+            .otp-code {{
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                font-size: 32px;
+                font-weight: bold;
+                padding: 20px;
+                text-align: center;
+                border-radius: 8px;
+                margin: 20px 0;
+                letter-spacing: 8px;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            }}
+            
+            .button {{
+                display: inline-block;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 12px 30px;
+                text-decoration: none;
+                border-radius: 25px;
+                font-weight: 600;
+                margin: 20px 0;
+                transition: transform 0.2s;
+            }}
+            
+            .button:hover {{
+                transform: translateY(-2px);
+            }}
+            
+            .footer {{
+                background-color: #f8f9fa;
+                padding: 30px 40px;
+                border-top: 1px solid #e9ecef;
+            }}
+            
+            .footer-content {{
+                text-align: center;
+                color: #6c757d;
+                font-size: 12px;
+                line-height: 1.5;
+            }}
+            
+            .footer-links {{
+                margin: 15px 0;
+            }}
+            
+            .footer-links a {{
+                color: #667eea;
+                text-decoration: none;
+                margin: 0 10px;
+            }}
+            
+            .footer-links a:hover {{
+                text-decoration: underline;
+            }}
+            
+            .company-info {{
+                margin-top: 20px;
+                padding-top: 20px;
+                border-top: 1px solid #dee2e6;
+                font-size: 11px;
+            }}
+            
+            .social-links {{
+                margin: 15px 0;
+            }}
+            
+            .social-links a {{
+                color: #6c757d;
+                text-decoration: none;
+                margin: 0 8px;
+                font-size: 14px;
+            }}
+            
+            @media only screen and (max-width: 600px) {{
+                .email-container {{
+                    margin: 0;
+                    border-radius: 0;
+                }}
+                
+                .header, .content, .footer {{
+                    padding: 20px;
+                }}
+                
+                .otp-code {{
+                    font-size: 24px;
+                    letter-spacing: 4px;
+                }}
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="email-container">
+            <div class="header">
+                <div class="logo">Fuetime</div>
+                <div class="tagline">Connecting Talent with Opportunity</div>
+            </div>
+            
+            <div class="content">
+                {content}
+            </div>
+            
+            <div class="footer">
+                <div class="footer-content">
+                    <div class="footer-links">
+                        <a href="https://fuetime.com/privacy">Privacy Policy</a>
+                        <a href="https://fuetime.com/terms">Terms of Service</a>
+                        <a href="https://fuetime.com/unsubscribe?email={{EMAIL}}">Unsubscribe</a>
+                        <a href="https://fuetime.com/contact">Contact Support</a>
+                    </div>
+                    
+                    <div class="social-links">
+                        <a href="https://facebook.com/fuetime">Facebook</a>
+                        <a href="https://twitter.com/fuetime">Twitter</a>
+                        <a href="https://linkedin.com/company/fuetime">LinkedIn</a>
+                        <a href="https://instagram.com/fuetime">Instagram</a>
+                    </div>
+                    
+                    <div class="company-info">
+                        <strong>Fuetime Inovonix Pvt. Ltd.</strong>
+                        Phone: +91-9984-053442 | Email: support@fuetime.com<br>
+                        Copyright 2026 Fuetime. All rights reserved.<br><br>
+                        {footer_text}<br>
+                        This email was sent to {{EMAIL}} because you registered on Fuetime.<br>
+                        Sender: noreply@fuetime.com
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return template
+
 def send_otp_email(user_email, otp):
     # Email configuration
     sender_email = app.config.get('MAIL_USERNAME')
     sender_password = app.config.get('MAIL_PASSWORD')
-    mail_port = app.config.get('MAIL_PORT', 465)
-    use_ssl = app.config.get('MAIL_USE_SSL', True)
+    mail_server = app.config.get('MAIL_SERVER')
+    mail_port = app.config.get('MAIL_PORT', 587)
+    use_tls = app.config.get('MAIL_USE_TLS', True)
+    
+    # Create professional HTML content (no emojis)
+    content = f"""
+    <h1>Verify Your Email Address</h1>
+    
+    <p>Thank you for signing up with Fuetime! To complete your registration, please use the verification code below:</p>
+    
+    <div class="otp-code">{otp}</div>
+    
+    <p><strong>Important:</strong></p>
+    <ul>
+        <li>This code will expire in <strong>10 minutes</strong> for security reasons</li>
+        <li>Never share this code with anyone</li>
+        <li>If you didn't request this code, please ignore this email</li>
+    </ul>
+    
+    <p>If you have any questions or didn't request this verification, please contact our support team.</p>
+    
+    <p>Best regards,<br>
+    The Fuetime Team</p>
+    """
+    
+    # Create professional email template
+    html_content = create_professional_email_template(
+        subject="Verify Your Email - Fuetime Registration",
+        content=content,
+        footer_text="This verification code is required to complete your Fuetime registration. For your security, never share verification codes."
+    ).replace("{{EMAIL}}", user_email)
     
     # Create message
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
+    msg = MIMEMultipart('alternative')
+    msg['From'] = app.config.get('MAIL_DEFAULT_SENDER')
     msg['To'] = user_email
-    msg['Subject'] = 'Your OTP for Fuetime Registration'
+    msg['Subject'] = 'Verify Your Email - Fuetime Registration'
     
-    # Email body
-    body = f'''Hello,
+    # Add HTML content
+    html_part = MIMEText(html_content, 'html')
+    msg.attach(html_part)
+    
+    # Also add plain text version for email clients that don't support HTML
+    text_content = f"""Hello,
 
-Your OTP for Fuetime registration is: {otp}
+Thank you for signing up with Fuetime! To complete your registration, please use the verification code below:
 
-This OTP will expire in 10 minutes.
+Your OTP: {otp}
+
+Important:
+- This code will expire in 10 minutes for security reasons
+- Never share this code with anyone
+- If you didn't request this code, please ignore this email
+
+If you have any questions or didn't request this verification, please contact our support team.
 
 Best regards,
-Fuetime Team'''
+The Fuetime Team
+
+---
+Fuetime Inovonix Pvt. Ltd.
+Phone: +91-998-405-3442 | Email: support@fuetime.com
+Copyright 2026 Fuetime. All rights reserved.
+Privacy Policy: https://fuetime.com/privacy
+Terms of Service: https://fuetime.com/terms
+Unsubscribe: https://fuetime.com/unsubscribe?email={user_email}
+"""
     
-    msg.attach(MIMEText(body, 'plain'))
+    text_part = MIMEText(text_content, 'plain')
+    msg.attach(text_part)
     
     try:
-        # Create SMTP session using SSL or TLS based on configuration
-        if use_ssl:
-            # Use SSL (port 465)
-            server = smtplib.SMTP_SSL('smtp.gmail.com', mail_port)
-        else:
-            # Use TLS (port 587)
-            server = smtplib.SMTP('smtp.gmail.com', mail_port)
+        # Create SMTP session using Amazon SES
+        server = smtplib.SMTP(mail_server, mail_port)
+        if use_tls:
             server.starttls()
         
         server.login(sender_email, sender_password)
         
-        # Send email
+        # Send email with proper encoding
         text = msg.as_string()
-        server.sendmail(sender_email, user_email, text)
+        server.sendmail(app.config.get('MAIL_DEFAULT_SENDER'), user_email, text.encode('utf-8').decode('utf-8'))
         server.quit()
         
         app.logger.info(f'OTP email sent successfully to {user_email}')
@@ -1117,12 +1374,69 @@ Fuetime Team'''
 
 def send_unblock_notification_email(user_email, user_name):
     """Send email notification to user when their account is unblocked"""
-    msg = MIMEMultipart()
+    
+    # Create professional HTML content (no emojis)
+    content = f"""
+    <h1>Great News! Your Account Has Been Reactivated</h1>
+    
+    <p>Dear {user_name},</p>
+    
+    <p>Great news! Your Fuetime account has been <strong>successfully reactivated</strong> by our administration team.</p>
+    
+    <p>Your account is now fully functional and you can:</p>
+    <ul>
+        <li>View and update your profile</li>
+        <li>Receive contact requests from other users</li>
+        <li>Access all platform features</li>
+        <li>Connect with potential clients or service providers</li>
+    </ul>
+    
+    <h2>What this means:</h2>
+    <ul>
+        <li>Your profile is now visible to other users again</li>
+        <li>All account functionality has been restored</li>
+        <li>You can continue using Fuetime as before</li>
+    </ul>
+    
+    <h2>Next Steps:</h2>
+    <ol>
+        <li><strong>Log in to your account</strong> to verify everything is working</li>
+        <li>Update your profile if needed</li>
+        <li>Start connecting with other users on the platform</li>
+    </ol>
+    
+    <div style="background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+        <h3 style="color: #155724; margin-top: 0;">Welcome Back!</h3>
+        <p style="color: #155724;">Thank you for your patience and cooperation during the review process. We appreciate having you as part of the Fuetime community.</p>
+    </div>
+    
+    <p>If you have any questions or need assistance, please don't hesitate to contact our customer support team.</p>
+    
+    <p>We look forward to seeing you active on the platform again!</p>
+    
+    <p>Best regards,<br>
+    The Fuetime Customer Support Team</p>
+    """
+    
+    # Create professional email template
+    html_content = create_professional_email_template(
+        subject="Good News: Your Fuetime Account Has Been Reactivated",
+        content=content,
+        footer_text="Your Fuetime account has been successfully reactivated. Welcome back to our platform!"
+    ).replace("{{EMAIL}}", user_email)
+    
+    # Create message
+    msg = MIMEMultipart('alternative')
     msg['From'] = app.config['MAIL_DEFAULT_SENDER']
     msg['To'] = user_email
     msg['Subject'] = 'Good News: Your Fuetime Account Has Been Reactivated'
     
-    body = f'''Dear {user_name},
+    # Add HTML content
+    html_part = MIMEText(html_content, 'html')
+    msg.attach(html_part)
+    
+    # Also add plain text version
+    text_content = f"""Dear {user_name},
 
 Great news! Your Fuetime account has been successfully reactivated by our administration team.
 
@@ -1148,29 +1462,39 @@ If you have any questions or need assistance, please don't hesitate to contact o
 
 Customer Support Contact:
 - Email: support@fuetime.com
-- Phone: +91-XXXXXXXXXX
+- Phone: +1-555-123-4567
 - Response Time: Within 24-48 hours
 
 We look forward to seeing you active on the platform again!
 
 Best regards,
 The Fuetime Customer Support Team
-https://fuetime.com
-'''
+
+---
+Fuetime Inovonix Pvt. Ltd.
+Phone: +91-998-405-3442 | Email: support@fuetime.com
+Copyright 2026 Fuetime. All rights reserved.
+Privacy Policy: https://fuetime.com/privacy
+Terms of Service: https://fuetime.com/terms
+Unsubscribe: https://fuetime.com/unsubscribe?email={user_email}
+"""
     
-    msg.attach(MIMEText(body, 'plain'))
+    text_part = MIMEText(text_content, 'plain')
+    msg.attach(text_part)
     
     try:
-        # Create server connection with SSL
-        server = smtplib.SMTP_SSL(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        # Create server connection using Amazon SES
+        server = smtplib.SMTP(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        if app.config.get('MAIL_USE_TLS', True):
+            server.starttls()
         server.ehlo()  # Identify ourselves to the server
         
         # Attempt login
         server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
         
-        # Send email
+        # Send email with proper encoding
         text = msg.as_string()
-        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], user_email, text)
+        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], user_email, text.encode('utf-8').decode('utf-8'))
         
         # Log success
         app.logger.info(f'Unblock notification email sent successfully to {user_email}')
@@ -1193,12 +1517,67 @@ https://fuetime.com
 
 def send_block_notification_email(user_email, user_name):
     """Send email notification to user when their account is blocked"""
-    msg = MIMEMultipart()
+    
+    # Create professional HTML content (no emojis)
+    content = f"""
+    <h1>Account Action Required</h1>
+    
+    <p>Dear {user_name},</p>
+    
+    <p>We regret to inform you that your Fuetime account has been <strong>temporarily blocked</strong> by our administration team.</p>
+    
+    <p>This action has been taken due to a violation of our platform's terms of service or community guidelines.</p>
+    
+    <h2>What this means:</h2>
+    <ul>
+        <li>Your profile is no longer visible to other users</li>
+        <li>You cannot receive new contact requests</li>
+        <li>Your account functionality is temporarily suspended</li>
+    </ul>
+    
+    <h2>What you should do:</h2>
+    <ol>
+        <li><strong>Contact our customer support team immediately</strong> to resolve this issue</li>
+        <li>Provide any additional information that may help us review your case</li>
+        <li>Wait for our team to review and respond to your inquiry</li>
+    </ol>
+    
+    <div style="background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 20px 0;">
+        <h3 style="color: #721c24; margin-top: 0;">Important Note:</h3>
+        <ul style="color: #721c24;">
+            <li>This block is temporary and can be lifted after review</li>
+            <li>Please do not create multiple accounts as this may result in permanent suspension</li>
+            <li>We value all our users and want to work with you to resolve any concerns</li>
+        </ul>
+    </div>
+    
+    <p>We understand this may be inconvenient, and we're here to help resolve any issues. Our team will review your case as soon as possible.</p>
+    
+    <p>Thank you for your patience and understanding.</p>
+    
+    <p>Best regards,<br>
+    The Fuetime Customer Support Team</p>
+    """
+    
+    # Create professional email template
+    html_content = create_professional_email_template(
+        subject="Important: Your Fuetime Account Has Been Blocked",
+        content=content,
+        footer_text="This is an important notification regarding your Fuetime account status. Please contact support immediately if you have questions."
+    ).replace("{{EMAIL}}", user_email)
+    
+    # Create message
+    msg = MIMEMultipart('alternative')
     msg['From'] = app.config['MAIL_DEFAULT_SENDER']
     msg['To'] = user_email
     msg['Subject'] = 'Important: Your Fuetime Account Has Been Blocked'
     
-    body = f'''Dear {user_name},
+    # Add HTML content
+    html_part = MIMEText(html_content, 'html')
+    msg.attach(html_part)
+    
+    # Also add plain text version
+    text_content = f"""Dear {user_name},
 
 We regret to inform you that your Fuetime account has been temporarily blocked by our administration team.
 
@@ -1216,36 +1595,46 @@ What you should do:
 
 Customer Support Contact:
 - Email: support@fuetime.com
-- Phone: +91-XXXXXXXXXX
+- Phone: +1-555-123-4567
 - Response Time: Within 24-48 hours
-
-We understand this may be inconvenient, and we're here to help resolve any issues. Our team will review your case as soon as possible.
 
 Important Note:
 - This block is temporary and can be lifted after review
 - Please do not create multiple accounts as this may result in permanent suspension
 - We value all our users and want to work with you to resolve any concerns
 
+We understand this may be inconvenient, and we're here to help resolve any issues. Our team will review your case as soon as possible.
+
 Thank you for your patience and understanding.
 
 Best regards,
 The Fuetime Customer Support Team
-https://fuetime.com
-'''
+
+---
+Fuetime Inovonix Pvt. Ltd.
+Phone: +91-998-405-3442 | Email: support@fuetime.com
+Copyright 2026 Fuetime. All rights reserved.
+Privacy Policy: https://fuetime.com/privacy
+Terms of Service: https://fuetime.com/terms
+Unsubscribe: https://fuetime.com/unsubscribe?email={user_email}
+"""
     
-    msg.attach(MIMEText(body, 'plain'))
+    text_part = MIMEText(text_content, 'plain')
+    msg.attach(text_part)
     
     try:
-        # Create server connection with SSL
-        server = smtplib.SMTP_SSL(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        # Create server connection using Amazon SES
+        server = smtplib.SMTP(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        if app.config.get('MAIL_USE_TLS', True):
+            server.starttls()
         server.ehlo()  # Identify ourselves to the server
         
         # Attempt login
         server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
         
-        # Send email
+        # Send email with proper encoding
         text = msg.as_string()
-        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], user_email, text)
+        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], user_email, text.encode('utf-8').decode('utf-8'))
         
         # Log success
         app.logger.info(f'Block notification email sent successfully to {user_email}')
@@ -1267,38 +1656,104 @@ https://fuetime.com
             pass
 
 def send_reset_email(user_email, reset_url):
-    msg = MIMEMultipart()
+    """Send password reset email with professional HTML template"""
+    
+    # Create professional HTML content (no emojis)
+    content = f"""
+    <h1>Password Reset Request</h1>
+    
+    <p>Hello,</p>
+    
+    <p>You have requested to reset your password for your Fuetime account.</p>
+    
+    <p>To reset your password, please click on the button below:</p>
+    
+    <div style="text-align: center; margin: 30px 0;">
+        <a href="{reset_url}" class="button">Reset My Password</a>
+    </div>
+    
+    <p>Or copy and paste this link into your browser:</p>
+    <p style="background-color: #f8f9fa; padding: 10px; border-radius: 4px; word-break: break-all; font-family: monospace;">
+        {reset_url}
+    </p>
+    
+    <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+        <h3 style="color: #856404; margin-top: 0;">Important Security Information:</h3>
+        <ul style="color: #856404;">
+            <li>This link will expire in <strong>1 hour</strong> for security reasons</li>
+            <li>If you didn't make this request, please ignore this email</li>
+            <li>Your password will remain unchanged if you don't click the link</li>
+            <li>Never share this reset link with anyone</li>
+        </ul>
+    </div>
+    
+    <p>If you have any concerns about your account security, please contact our support team immediately.</p>
+    
+    <p>Best regards,<br>
+    The Fuetime Team</p>
+    """
+    
+    # Create professional email template
+    html_content = create_professional_email_template(
+        subject="Password Reset Request - Fuetime",
+        content=content,
+        footer_text="This password reset link was requested for your Fuetime account. If you didn't request this, please contact support immediately."
+    ).replace("{{EMAIL}}", user_email)
+    
+    # Create message
+    msg = MIMEMultipart('alternative')
     msg['From'] = app.config['MAIL_DEFAULT_SENDER']
     msg['To'] = user_email
     msg['Subject'] = 'Password Reset Request - Fuetime'
     
-    body = f'''Hello,
+    # Add HTML content
+    html_part = MIMEText(html_content, 'html')
+    msg.attach(html_part)
+    
+    # Also add plain text version
+    text_content = f"""Hello,
 
 You have requested to reset your password for your Fuetime account.
 
 To reset your password, please click on the following link:
 {reset_url}
 
-This link will expire in 1 hour for security reasons.
+Important Security Information:
+- This link will expire in 1 hour for security reasons
+- If you didn't make this request, please ignore this email
+- Your password will remain unchanged if you don't click the link
+- Never share this reset link with anyone
 
-If you did not make this request, please ignore this email and your password will remain unchanged.
+If you have any concerns about your account security, please contact our support team immediately.
 
 Best regards,
 The Fuetime Team
-'''
-    msg.attach(MIMEText(body, 'plain'))
+
+---
+Fuetime Inovonix Pvt. Ltd.
+Phone: +91-998-405-3442 | Email: support@fuetime.com
+Copyright 2026 Fuetime. All rights reserved.
+Privacy Policy: https://fuetime.com/privacy
+Terms of Service: https://fuetime.com/terms
+Unsubscribe: https://fuetime.com/unsubscribe?email={user_email}
+"""
+    
+    text_part = MIMEText(text_content, 'plain')
+    msg.attach(text_part)
     
     try:
-        # Create server connection with SSL
-        server = smtplib.SMTP_SSL(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        # Create server connection using Amazon SES
+        server = smtplib.SMTP(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        if app.config.get('MAIL_USE_TLS', True):
+            server.starttls()
         server.ehlo()  # Identify ourselves to the server
         
         # Attempt login
         server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
         
-        # Send email
+        # Send email with proper encoding
         text = msg.as_string()
-        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], user_email, text)
+        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], user_email, text.encode('utf-8').decode('utf-8'))
         
         # Log success
         app.logger.info(f'Password reset email sent successfully to {user_email}')
@@ -1664,6 +2119,13 @@ def add_wallet_balance():
             Is Authenticated: {current_user.is_authenticated}
             User ID in session: {current_user.get_id()}
         ''')
+        
+        # Send email notification to user about wallet balance addition
+        try:
+            send_wallet_balance_email(user, amount, new_balance)
+            app.logger.info(f'Wallet balance email sent to {user.email}')
+        except Exception as e:
+            app.logger.error(f'Error sending wallet balance email: {str(e)}')
         
         return jsonify({
             'success': True,
@@ -4299,7 +4761,7 @@ def get_unread_count():
     
     return jsonify({'count': current_user._unread_count})
 
-@app.route('/resend-otp', methods=['POST'])
+@app.route('/resend-otp', methods=['GET', 'POST'])
 def resend_otp():
     """Resend OTP to user's email"""
     if 'registration_data' not in session:
@@ -4630,44 +5092,415 @@ def debug_reviews(user_id):
         app.logger.error(f"Error in debug_reviews: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
+def send_wallet_balance_email(user, amount_added, new_balance):
+    """Send email notification to user when wallet balance is added"""
+    try:
+        # Create professional HTML content for wallet balance notification
+        content = f"""
+        <h1>Wallet Balance Updated</h1>
+        
+        <p>Dear {user.full_name},</p>
+        
+        <p>Great news! Your wallet has been successfully credited with funds.</p>
+        
+        <div style="background-color: #d4edda; border-left: 4px solid #28a745; padding: 20px; margin: 20px 0; border-radius: 4px;">
+            <h3 style="color: #155724; margin-top: 0;">Transaction Details:</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #155724;">Amount Added:</td>
+                    <td style="padding: 8px;">
+                        <span style="background-color: #28a745; color: #fff; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+                            +₹{amount_added:.2f}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #155724;">Previous Balance:</td>
+                    <td style="padding: 8px;">₹{(new_balance - amount_added):.2f}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #155724;">New Balance:</td>
+                    <td style="padding: 8px; font-weight: bold; color: #28a745; font-size: 16px;">
+                        ₹{new_balance:.2f}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #155724;">Transaction Time:</td>
+                    <td style="padding: 8px;">{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</td>
+                </tr>
+            </table>
+        </div>
+        
+        <h2>What Can You Do With Your Wallet Balance?</h2>
+        <p>Your wallet balance can be used for various services on our platform:</p>
+        
+        <div style="background-color: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0;">
+            <ul style="color: #495057; margin-bottom: 0;">
+                <li>Premium features and services</li>
+                <li>Communication with service providers</li>
+                <li>Platform subscriptions</li>
+                <li>Special offers and discounts</li>
+            </ul>
+        </div>
+        
+        <h2>Need Help?</h2>
+        <p>If you have any questions about your wallet balance or transactions, our support team is here to help you.</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{url_for('help', _external=True)}" class="button">Contact Support</a>
+        </div>
+        
+        <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+            <h3 style="color: #856404; margin-top: 0;">Security Notice:</h3>
+            <p style="color: #856404;">This is an automated email about your wallet activity. If you did not perform this transaction, please contact our support team immediately.</p>
+        </div>
+        
+        <p>Thank you for using Fuetime services!</p>
+        
+        <p>Best regards,<br>
+        The Fuetime Team</p>
+        """
+        
+        # Create professional email template
+        subject = f"Wallet Balance Added - ₹{amount_added:.2f} Credited"
+        html_content = create_professional_email_template(
+            subject=subject,
+            content=content,
+            footer_text=f"Your wallet has been credited with ₹{amount_added:.2f}. Current balance: ₹{new_balance:.2f}."
+        ).replace("{{EMAIL}}", user.email)
+        
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['From'] = app.config['MAIL_DEFAULT_SENDER']
+        msg['To'] = user.email
+        msg['Subject'] = subject
+        
+        # Add HTML content
+        html_part = MIMEText(html_content, 'html')
+        msg.attach(html_part)
+        
+        # Also add plain text version
+        text_content = f"""Dear {user.full_name},
+
+Great news! Your wallet has been successfully credited with funds.
+
+TRANSACTION DETAILS:
+Amount Added: +₹{amount_added:.2f}
+Previous Balance: ₹{(new_balance - amount_added):.2f}
+New Balance: ₹{new_balance:.2f}
+Transaction Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+WHAT CAN YOU DO WITH YOUR WALLET BALANCE?
+Your wallet balance can be used for various services on our platform:
+- Premium features and services
+- Communication with service providers
+- Platform subscriptions
+- Special offers and discounts
+
+NEED HELP?
+If you have any questions about your wallet balance or transactions, our support team is here to help you.
+Visit: {url_for('help', _external=True)}
+
+SECURITY NOTICE:
+This is an automated email about your wallet activity. If you did not perform this transaction, please contact our support team immediately.
+
+Thank you for using Fuetime services!
+
+Best regards,
+The Fuetime Team
+
+---
+Fuetime Inovonix Pvt. Ltd.
+Phone: +91-998-405-3442 | Email: support@fuetime.com
+Copyright 2026 Fuetime. All rights reserved.
+Privacy Policy: https://fuetime.com/privacy
+Terms of Service: https://fuetime.com/terms
+Unsubscribe: https://fuetime.com/unsubscribe?email={user.email}
+        """
+        
+        text_part = MIMEText(text_content, 'plain')
+        msg.attach(text_part)
+        
+        # Send email with proper encoding
+        text = msg.as_string()
+        server = smtplib.SMTP(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        if app.config.get('MAIL_USE_TLS', True):
+            server.starttls()
+        server.ehlo()
+        
+        server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
+        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], user.email, text.encode('utf-8').decode('utf-8'))
+        server.quit()
+        
+        return True
+        
+    except Exception as e:
+        app.logger.error(f'Error sending wallet balance email to {user.email}: {str(e)}')
+        return False
+
+def send_help_request_update_email(user, help_request, old_status):
+    """Send email notification to user when their help request is updated by admin"""
+    try:
+        # Create professional HTML content for help request update
+        content = f"""
+        <h1>Help Request Update</h1>
+        
+        <p>Dear {user.full_name},</p>
+        
+        <p>Good news! Your help request has been reviewed and updated by our support team.</p>
+        
+        <div style="background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; margin: 20px 0; border-radius: 4px;">
+            <h3 style="color: #1565c0; margin-top: 0;">Request Details:</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #1565c0;">Ticket ID:</td>
+                    <td style="padding: 8px;">#{help_request.ticket_id}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #1565c0;">Subject:</td>
+                    <td style="padding: 8px;">{help_request.subject}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #1565c0;">Previous Status:</td>
+                    <td style="padding: 8px;">
+                        <span style="background-color: #ffc107; color: #000; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+                            {old_status.title()}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #1565c0;">New Status:</td>
+                    <td style="padding: 8px;">
+                        <span style="background-color: #28a745; color: #fff; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+                            {help_request.status.title()}
+                        </span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        
+        {f'''<div style="background-color: #f8f9fa; border-left: 4px solid #6c757d; padding: 15px; margin: 20px 0;">
+            <h3 style="color: #495057; margin-top: 0;">Solution Provided:</h3>
+            <p style="color: #495057;">{help_request.solution or 'No solution provided yet.'}</p>
+        </div>''' if help_request.solution else ''}
+        
+        <h2>What's Next?</h2>
+        <p>You can track the status of your ticket and view all updates using the button below:</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{url_for('track_help_request', _external=True)}" class="button">Track My Ticket</a>
+        </div>
+        
+        <div style="background-color: #f8f9fa; border-left: 4px solid #6c757d; padding: 15px; margin: 20px 0;">
+            <h3 style="color: #495057; margin-top: 0;">Need More Help?</h3>
+            <p style="color: #495057;">If you have additional questions or need further assistance, please don't hesitate to contact our support team.</p>
+        </div>
+        
+        <p>Thank you for your patience and for using Fuetime support services.</p>
+        
+        <p>Best regards,<br>
+        The Fuetime Support Team</p>
+        """
+        
+        # Create professional email template
+        subject = f"Help Request Updated - Ticket #{help_request.ticket_id}"
+        html_content = create_professional_email_template(
+            subject=subject,
+            content=content,
+            footer_text=f"Your help request #{help_request.ticket_id} has been updated. You can track all changes through your support portal."
+        ).replace("{{EMAIL}}", user.email)
+        
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['From'] = app.config['MAIL_DEFAULT_SENDER']
+        msg['To'] = user.email
+        msg['Subject'] = subject
+        
+        # Add HTML content
+        html_part = MIMEText(html_content, 'html')
+        msg.attach(html_part)
+        
+        # Also add plain text version
+        text_content = f"""Dear {user.full_name},
+
+Good news! Your help request has been reviewed and updated by our support team.
+
+REQUEST DETAILS:
+Ticket ID: #{help_request.ticket_id}
+Subject: {help_request.subject}
+Previous Status: {old_status.title()}
+New Status: {help_request.status.title()}
+
+SOLUTION:
+{help_request.solution or 'No solution provided yet.'}
+
+WHAT'S NEXT?
+You can track the status of your ticket using the following link:
+{url_for('track_help_request', _external=True)}
+
+NEED MORE HELP?
+If you have additional questions or need further assistance, please don't hesitate to contact our support team.
+
+Thank you for your patience and for using Fuetime support services.
+
+Best regards,
+The Fuetime Support Team
+
+---
+Fuetime Inovonix Pvt. Ltd.
+Phone: +91-998-405-3442 | Email: support@fuetime.com
+Copyright 2026 Fuetime. All rights reserved.
+Privacy Policy: https://fuetime.com/privacy
+Terms of Service: https://fuetime.com/terms
+Unsubscribe: https://fuetime.com/unsubscribe?email={user.email}
+"""
+        
+        text_part = MIMEText(text_content, 'plain')
+        msg.attach(text_part)
+        
+        # Send email with proper encoding
+        text = msg.as_string()
+        server = smtplib.SMTP(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        if app.config.get('MAIL_USE_TLS', True):
+            server.starttls()
+        server.ehlo()
+        
+        server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
+        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], user.email, text.encode('utf-8').decode('utf-8'))
+        server.quit()
+        
+        return True
+        
+    except Exception as e:
+        app.logger.error(f'Error sending help request update email to {user.email}: {str(e)}')
+        return False
+
 def send_help_request_email(user, help_request):
+    """Send help request confirmation email with professional HTML template"""
     try:
         # Log the start of email sending
         app.logger.info(f"Attempting to send email to {user.email} for ticket {help_request.ticket_id}")
         
-        # Email content
-        subject = f"Help Request Confirmation - Ticket #{help_request.ticket_id}"
-        body = f"""
-        <html>
-        <body>
-            <p>Dear {user.full_name},</p>
-            <p>Thank you for contacting our support team. We've received your request and a ticket has been created.</p>
+        # Create professional HTML content (no emojis)
+        content = f"""
+        <h1>Support Request Received</h1>
+        
+        <p>Dear {user.full_name},</p>
+        
+        <p>Thank you for contacting our support team. We've received your request and a ticket has been created.</p>
+        
+        <div style="background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; margin: 20px 0; border-radius: 4px;">
+            <h3 style="color: #1565c0; margin-top: 0;">Ticket Details:</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #1565c0;">Ticket ID:</td>
+                    <td style="padding: 8px;">#{help_request.ticket_id}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #1565c0;">Subject:</td>
+                    <td style="padding: 8px;">{help_request.subject}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #1565c0;">Status:</td>
+                    <td style="padding: 8px;">
+                        <span style="background-color: #ffc107; color: #000; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+                            {help_request.status.title()}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #1565c0;">Submitted On:</td>
+                    <td style="padding: 8px;">{help_request.created_at.strftime('%B %d, %Y %I:%M %p')}</td>
+                </tr>
+            </table>
             
-            <h3>Ticket Details:</h3>
-            <p><strong>Ticket ID:</strong> {help_request.ticket_id}</p>
-            <p><strong>Subject:</strong> {help_request.subject}</p>
-            <p><strong>Description:</strong></p>
-            <p>{help_request.description}</p>
-            <p><strong>Status:</strong> {help_request.status.title()}</p>
-            <p><strong>Submitted On:</strong> {help_request.created_at.strftime('%B %d, %Y %I:%M %p')}</p>
-            
-            <p>You can track the status of your ticket using the following link:</p>
-            <p><a href="{url_for('track_help_request', _external=True)}">Track Your Ticket</a></p>
-            
-            <p>Our support team will review your request and get back to you as soon as possible.</p>
-            <p>Thank you for your patience.</p>
-            
-            <p>Best regards,<br>Support Team</p>
-        </body>
-        </html>
+            <h4 style="color: #1565c0; margin: 15px 0 5px 0;">Description:</h4>
+            <p style="background-color: #f5f5f5; padding: 10px; border-radius: 4px; margin: 0;">
+                {help_request.description}
+            </p>
+        </div>
+        
+        <h2>Track Your Ticket</h2>
+        <p>You can track the status of your ticket and view updates using the button below:</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{url_for('track_help_request', _external=True)}" class="button">Track My Ticket</a>
+        </div>
+        
+        <div style="background-color: #f8f9fa; border-left: 4px solid #6c757d; padding: 15px; margin: 20px 0;">
+            <h3 style="color: #495057; margin-top: 0;">What Happens Next?</h3>
+            <ol style="color: #495057;">
+                <li>Our support team will review your request within 24 hours</li>
+                <li>You'll receive updates via email as your ticket progresses</li>
+                <li>You can track your ticket status anytime using the link above</li>
+                <li>If needed, we may contact you for additional information</li>
+            </ol>
+        </div>
+        
+        <p>Our support team will review your request and get back to you as soon as possible. Thank you for your patience.</p>
+        
+        <p>Best regards,<br>
+        The Fuetime Support Team</p>
         """
         
+        # Create professional email template
+        subject = f"Help Request Confirmation - Ticket #{help_request.ticket_id}"
+        html_content = create_professional_email_template(
+            subject=subject,
+            content=content,
+            footer_text=f"This is a confirmation for your help request ticket #{help_request.ticket_id}. Please keep this email for your records."
+        ).replace("{{EMAIL}}", user.email)
+        
         # Create message
-        msg = MIMEMultipart()
+        msg = MIMEMultipart('alternative')
         msg['From'] = app.config['MAIL_DEFAULT_SENDER']
         msg['To'] = user.email
         msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'html'))
+        
+        # Add HTML content
+        html_part = MIMEText(html_content, 'html')
+        msg.attach(html_part)
+        
+        # Also add plain text version
+        text_content = f"""Dear {user.full_name},
+
+Thank you for contacting our support team. We've received your request and a ticket has been created.
+
+TICKET DETAILS:
+Ticket ID: #{help_request.ticket_id}
+Subject: {help_request.subject}
+Status: {help_request.status.title()}
+Submitted On: {help_request.created_at.strftime('%B %d, %Y %I:%M %p')}
+
+Description:
+{help_request.description}
+
+TRACK YOUR TICKET:
+You can track the status of your ticket using the following link:
+{url_for('track_help_request', _external=True)}
+
+WHAT HAPPENS NEXT:
+1. Our support team will review your request within 24 hours
+2. You'll receive updates via email as your ticket progresses
+3. You can track your ticket status anytime using the link above
+4. If needed, we may contact you for additional information
+
+Our support team will review your request and get back to you as soon as possible. Thank you for your patience.
+
+Best regards,
+The Fuetime Support Team
+
+---
+Fuetime Inovonix Pvt. Ltd.
+Phone: +91-998-405-3442 | Email: support@fuetime.com
+© 2026 Fuetime. All rights reserved.
+Privacy Policy: https://fuetime.com/privacy
+Terms of Service: https://fuetime.com/terms
+Unsubscribe: https://fuetime.com/unsubscribe?email={user.email}
+"""
+        
+        text_part = MIMEText(text_content, 'plain')
+        msg.attach(text_part)
         
         # Debug log
         app.logger.info(f"SMTP Server: {app.config['MAIL_SERVER']}:{app.config['MAIL_PORT']}")
@@ -4677,16 +5510,20 @@ def send_help_request_email(user, help_request):
         
         # Send email with more detailed error handling
         try:
-            app.logger.info(f"Connecting to SMTP server with SSL: {app.config['MAIL_SERVER']}:{app.config['MAIL_PORT']}")
+            app.logger.info(f"Connecting to SMTP server with TLS: {app.config['MAIL_SERVER']}:{app.config['MAIL_PORT']}")
             
             try:
-                # Create SMTP_SSL connection
-                server = smtplib.SMTP_SSL(
+                # Create SMTP connection using Amazon SES
+                server = smtplib.SMTP(
                     host=app.config['MAIL_SERVER'],
                     port=app.config['MAIL_PORT'],
                     timeout=30
                 )
                 server.set_debuglevel(1)  # Enable debug output
+                
+                # Use TLS if configured
+                if app.config.get('MAIL_USE_TLS', True):
+                    server.starttls()
                 
                 # Identify ourselves to the SMTP server
                 server.ehlo()
@@ -4829,6 +5666,7 @@ def admin_help_request(ticket_id):
     help_request = HelpRequest.query.filter_by(ticket_id=ticket_id).first_or_404()
     
     if request.method == 'POST':
+        old_status = help_request.status
         status = request.form.get('status')
         solution = request.form.get('solution')
         
@@ -4837,7 +5675,17 @@ def admin_help_request(ticket_id):
         if solution:
             help_request.solution = solution
             
+        # Update the timestamp
+        help_request.updated_at = datetime.utcnow()
         db.session.commit()
+        
+        # Send email notification to user about the update
+        try:
+            send_help_request_update_email(help_request.user, help_request, old_status)
+            app.logger.info(f'Help request update email sent to {help_request.user.email}')
+        except Exception as e:
+            app.logger.error(f'Error sending help request update email: {str(e)}')
+        
         flash('Help request updated successfully.', 'success')
         return redirect(url_for('admin_help_request', ticket_id=ticket_id))
     
