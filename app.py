@@ -5110,18 +5110,18 @@ def send_wallet_balance_email(user, amount_added, new_balance):
                     <td style="padding: 8px; font-weight: bold; color: #155724;">Amount Added:</td>
                     <td style="padding: 8px;">
                         <span style="background-color: #28a745; color: #fff; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
-                            +₹{amount_added:.2f}
+                            +Rs.{amount_added:.2f}
                         </span>
                     </td>
                 </tr>
                 <tr>
                     <td style="padding: 8px; font-weight: bold; color: #155724;">Previous Balance:</td>
-                    <td style="padding: 8px;">₹{(new_balance - amount_added):.2f}</td>
+                    <td style="padding: 8px;">Rs.{(new_balance - amount_added):.2f}</td>
                 </tr>
                 <tr>
                     <td style="padding: 8px; font-weight: bold; color: #155724;">New Balance:</td>
                     <td style="padding: 8px; font-weight: bold; color: #28a745; font-size: 16px;">
-                        ₹{new_balance:.2f}
+                        Rs.{new_balance:.2f}
                     </td>
                 </tr>
                 <tr>
@@ -5147,7 +5147,7 @@ def send_wallet_balance_email(user, amount_added, new_balance):
         <p>If you have any questions about your wallet balance or transactions, our support team is here to help you.</p>
         
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{url_for('help', _external=True)}" class="button">Contact Support</a>
+            <a href="https://fuetime.com/help" class="button">Contact Support</a>
         </div>
         
         <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
@@ -5162,11 +5162,11 @@ def send_wallet_balance_email(user, amount_added, new_balance):
         """
         
         # Create professional email template
-        subject = f"Wallet Balance Added - ₹{amount_added:.2f} Credited"
+        subject = f"Wallet Balance Added - Rs.{amount_added:.2f} Credited"
         html_content = create_professional_email_template(
             subject=subject,
             content=content,
-            footer_text=f"Your wallet has been credited with ₹{amount_added:.2f}. Current balance: ₹{new_balance:.2f}."
+            footer_text=f"Your wallet has been credited with Rs.{amount_added:.2f}. Current balance: Rs.{new_balance:.2f}."
         ).replace("{{EMAIL}}", user.email)
         
         # Create message
@@ -5185,9 +5185,9 @@ def send_wallet_balance_email(user, amount_added, new_balance):
 Great news! Your wallet has been successfully credited with funds.
 
 TRANSACTION DETAILS:
-Amount Added: +₹{amount_added:.2f}
-Previous Balance: ₹{(new_balance - amount_added):.2f}
-New Balance: ₹{new_balance:.2f}
+Amount Added: +Rs.{amount_added:.2f}
+Previous Balance: Rs.{(new_balance - amount_added):.2f}
+New Balance: Rs.{new_balance:.2f}
 Transaction Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 WHAT CAN YOU DO WITH YOUR WALLET BALANCE?
@@ -5199,7 +5199,7 @@ Your wallet balance can be used for various services on our platform:
 
 NEED HELP?
 If you have any questions about your wallet balance or transactions, our support team is here to help you.
-Visit: {url_for('help', _external=True)}
+Visit: https://fuetime.com/help
 
 SECURITY NOTICE:
 This is an automated email about your wallet activity. If you did not perform this transaction, please contact our support team immediately.
