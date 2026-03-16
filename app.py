@@ -32,41 +32,8 @@ from flask_login import UserMixin, login_user, login_required, logout_user, curr
 from functools import wraps
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, get_jwt_identity, jwt_required, get_jwt
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import emit, join_room, leave_room
 from flask_login import current_user, login_required
-
-# Initialize SocketIO first
-socketio = SocketIO()
-
-# WebSocket route for user presence
-@socketio.on('connect')
-@login_required
-def handle_connect():
-    """Handle WebSocket connection."""
-    if current_user.is_authenticated:
-        join_room(f'user_{current_user.id}')
-        emit('status', {'user_id': current_user.id, 'status': 'online'}, room=f'user_{current_user.id}')
-        print(f"User {current_user.id} connected to WebSocket")
-    else:
-        return False  # Reject the connection
-
-@socketio.on('disconnect')
-@login_required
-def handle_disconnect():
-    """Handle WebSocket disconnection."""
-    if current_user.is_authenticated:
-        leave_room(f'user_{current_user.id}')
-        emit('status', {'user_id': current_user.id, 'status': 'offline'}, room=f'user_{current_user.id}')
-        print(f"User {current_user.id} disconnected from WebSocket")
-
-# User presence event handler
-@socketio.on('user_presence')
-@login_required
-def handle_user_presence(data):
-    """Handle user presence updates."""
-    user_id = current_user.id
-    status = data.get('status', 'online')
-    emit('user_presence', {'user_id': user_id, 'status': status}, room=f'user_{user_id}')
 
 # Import Socket.IO event handlers
 import events
@@ -89,7 +56,7 @@ CORS(app, resources={
 })
 
 # Initialize Flask-Migrate
-from extensions import db
+from extensions import db, socketio
 from flask_migrate import Migrate
 migrate = Migrate(app, db)
 
@@ -104,23 +71,50 @@ app.register_blueprint(search_bp, url_prefix='')
 app.config['WTF_CSRF_ENABLED'] = False
 app.config['WTF_CSRF_CHECK_DEFAULT'] = False
 
-# Initialize SocketIO with the app (single initialization)
+# Initialize SocketIO with the app (using instance from extensions.py)
 socketio.init_app(app)
+
+# Register Socket.IO events
+events.register_socketio_events()
 
 # Register Socket.IO error handler
 @socketio.on_error_default
 def default_error_handler(e):
+    """Handle all Socket.IO errors gracefully"""
     print(f'Socket.IO error: {str(e)}')
     
-    # Handle cleanup on application shutdown
-    import atexit
+# Register specific error handlers for common issues
+@socketio.on_error()
+def handle_error(e):
+    """Handle general socket errors"""
+    print(f'Socket error: {str(e)}')
     
-    def shutdown_socketio():
-        if socketio:
-            print("Shutting down Socket.IO...")
+@socketio.on_error('connect')
+def handle_connect_error(e):
+    """Handle connection errors"""
+    print(f'Connection error: {str(e)}')
+    
+@socketio.on_error('disconnect')
+def handle_disconnect_error(e):
+    """Handle disconnect errors"""
+    print(f'Disconnect error: {str(e)}')
+    # Don't emit error responses that cause "Unable to connect" messages
+    # Just log the error and return gracefully
+    return False  # Prevent error propagation
+    
+# Handle cleanup on application shutdown
+import atexit
+
+def shutdown_socketio():
+    if socketio:
+        print("Shutting down Socket.IO...")
+        try:
             socketio.stop()
-    
-    atexit.register(shutdown_socketio)
+        except RuntimeError:
+            # Ignore "Working outside of request context" error during shutdown
+            pass
+
+atexit.register(shutdown_socketio)
 
 def init_socketio_handlers():
     """Initialize and register all Socket.IO event handlers."""
@@ -129,14 +123,14 @@ def init_socketio_handlers():
         return
         
     try:
-        # Import and register socket handlers
+        # Import and register socket handlers (but skip duplicate connect handlers)
         from blueprints.messages import register_socket_events
         from events import register_socketio_events
         
-        # Register message handlers
-        register_socket_events()
+        # Register message handlers (without connect/disconnect to avoid conflicts)
+        # register_socket_events()  # Commented out to avoid duplicate connect handlers
         
-        # Register other socket events
+        # Register other socket events (includes connect/disconnect)
         register_socketio_events()
         
         print("Socket.IO event handlers registered")
@@ -288,7 +282,7 @@ with app.app_context():
         
         # Verify that all required tables exist
         inspector = db.inspect(db.engine)
-        required_tables = ['user', 'call', 'transaction']
+        required_tables = ['user', 'calls', 'transactions', 'messages']
         for table in required_tables:
             if not inspector.has_table(table):
                 app.logger.error(f"Required table '{table}' was not created!")
@@ -2218,39 +2212,31 @@ def register():
                 print(f"{key}: {value}")
             print(f"User type from form: {user_type}")
             
-            # Initialize form data
+            # Initialize form data and field-specific errors
             form_data = request.form.to_dict()
-            error_msg = None
+            field_errors = {}
             
             # Debug: Print raw form data
             print("\nRaw form data:", dict(request.form))
         
-            # Collect form data with error handling
+            # Collect form data with field-specific error handling
             required_fields = ['email', 'phone', 'password', 'full_name', 'live_location']
             
-            # Process required fields
+            # Process required fields and collect field-specific errors
             for field in required_fields:
                 value = request.form.get(field, '').strip()
                 if not value:
-                    error_msg = f'{field.replace("_", " ").title()} is required'
-                    print(f"Validation error: {error_msg}")
-                    return render_template('register.html', 
-                                       form_data=form_data, 
-                                       error=error_msg,
-                                       current_date=current_date.strftime('%Y-%m-%d'))
-                form_data[field] = value
+                    field_errors[field] = f'{field.replace("_", " ").title()} is required'
+                else:
+                    form_data[field] = value
             
             # Additional validation for worker registration
             if user_type == 'worker':
-                if not request.form.get('date_of_birth'):
-                    error_msg = 'Date of birth is required for worker registration'
-                    print(f"Validation error: {error_msg}")
-                    return render_template('register.html', 
-                                       form_data=form_data, 
-                                       error=error_msg,
-                                       current_date=current_date.strftime('%Y-%m-%d'))
-                # Add date_of_birth to form_data for workers
-                form_data['date_of_birth'] = request.form['date_of_birth'].strip()
+                dob_value = request.form.get('date_of_birth', '').strip()
+                if not dob_value:
+                    field_errors['date_of_birth'] = 'Date of birth is required for worker registration'
+                else:
+                    form_data['date_of_birth'] = dob_value
             else:
                 # Clear date_of_birth for clients
                 form_data['date_of_birth'] = ''
@@ -2266,12 +2252,12 @@ def register():
             for field in optional_fields:
                 form_data[field] = request.form.get(field, '').strip()
             
-            # If there's an error with required fields, return early
-            if error_msg:
-                print(f"Validation Error: {error_msg}")
+            # If there are field errors, return with field-specific errors
+            if field_errors:
+                print(f"Field Errors: {field_errors}")
                 return render_template('register.html', 
                                    form_data=form_data, 
-                                   error=error_msg,
+                                   field_errors=field_errors,
                                    current_date=current_date.strftime('%Y-%m-%d'))
             
             # Debug prints
@@ -2302,61 +2288,57 @@ def register():
             for field in required_fields:
                 if field not in form_data or not form_data[field]:
                     print(f"Missing required field: {field}")
-                    error_msg = f'{field.replace("_", " ").title()} is required'
+                    field_errors[field] = f'{field.replace("_", " ").title()} is required'
                     if field == 'date_of_birth':
-                        error_msg = 'Date of birth is required for worker registration'
-                    return render_template('register.html', 
-                                       form_data=form_data, 
-                                       error=error_msg,
-                                       current_date=current_date.strftime('%Y-%m-%d'))
+                        field_errors[field] = 'Date of birth is required for worker registration'
             
             # Validate email format
-            if not re.match(r"[^@]+@[^@]+\.[^@]+", form_data['email']):
+            if 'email' in form_data and not re.match(r"[^@]+@[^@]+\.[^@]+", form_data['email']):
                 print("Invalid email format")
-                error_msg = 'Invalid email format'
-                return render_template('register.html', form_data=form_data, error=error_msg)
+                field_errors['email'] = 'Invalid email format'
             
             # Validate phone format (assuming 10 digits)
-            if not re.match(r'^\d{10}$', form_data['phone']):
+            if 'phone' in form_data and not re.match(r'^\d{10}$', form_data['phone']):
                 print("Invalid phone format")
-                error_msg = 'Invalid phone number format (must be 10 digits)'
-                return render_template('register.html', form_data=form_data, error=error_msg)
+                field_errors['phone'] = 'Invalid phone number format (must be 10 digits)'
+            
+            # If there are validation errors, return with field-specific errors
+            if field_errors:
+                return render_template('register.html', 
+                                   form_data=form_data, 
+                                   field_errors=field_errors,
+                                   current_date=current_date.strftime('%Y-%m-%d'))
             
             # Process worker-specific fields
             try:
                 # Process date of birth (required for workers)
                 if not form_data.get('date_of_birth'):
-                    error_msg = 'Date of birth is required for worker registration'
-                    return render_template('register.html', 
-                                       form_data=form_data, 
-                                       error=error_msg,
-                                       current_date=current_date.strftime('%Y-%m-%d'))
-                
-                dob = datetime.strptime(form_data['date_of_birth'], '%Y-%m-%d').date()
-                age = int((datetime.now().date() - dob).days / 365.25)
-                
-                # Validate age
-                if age < 18:
-                    error_msg = 'You must be at least 18 years old to register as a worker'
-                    return render_template('register.html', 
-                                       form_data=form_data, 
-                                       error=error_msg,
-                                       current_date=current_date.strftime('%Y-%m-%d'))
+                    field_errors['date_of_birth'] = 'Date of birth is required for worker registration'
+                else:
+                    try:
+                        dob = datetime.strptime(form_data['date_of_birth'], '%Y-%m-%d').date()
+                        age = int((datetime.now().date() - dob).days / 365.25)
+                        
+                        # Validate age
+                        if age < 18:
+                            field_errors['date_of_birth'] = 'You must be at least 18 years old to register as a worker'
+                    except ValueError:
+                        field_errors['date_of_birth'] = 'Invalid date of birth format. Please use YYYY-MM-DD'
                 
                 # Set live location
                 live_location = form_data.get('live_location')
                 if not live_location:
-                    error_msg = 'Live location is required for worker registration'
-                    return render_template('register.html',
-                                       form_data=form_data,
-                                       error=error_msg,
-                                       current_date=current_date.strftime('%Y-%m-%d'))
-            except ValueError as e:
-                print(f"Error parsing date: {e}")
-                error_msg = 'Invalid date of birth format. Please use YYYY-MM-DD'
+                    field_errors['live_location'] = 'Live location is required for worker registration'
+                    
+            except Exception as e:
+                print(f"Error processing date: {e}")
+                field_errors['date_of_birth'] = 'Invalid date of birth format. Please use YYYY-MM-DD'
+            
+            # If there are validation errors, return with field-specific errors
+            if field_errors:
                 return render_template('register.html', 
                                    form_data=form_data, 
-                                   error=error_msg,
+                                   field_errors=field_errors,
                                    current_date=current_date.strftime('%Y-%m-%d'))
             
             # Generate username from full name
@@ -2369,18 +2351,23 @@ def register():
             # Check if user already exists
             if User.query.filter_by(email=form_data['email']).first():
                 print(f"User with email {form_data['email']} already exists")
-                flash('Email already registered', 'danger')
-                return redirect(url_for('register'))
+                field_errors['email'] = 'Email address already registered'
             
             if User.query.filter_by(phone=form_data['phone']).first():
                 print(f"User with phone {form_data['phone']} already exists")
-                flash('Phone number already registered', 'danger')
-                return redirect(url_for('register'))
+                field_errors['phone'] = 'Phone number already registered'
+            
+            # If there are duplicate user errors, return with field-specific errors
+            if field_errors:
+                return render_template('register.html', 
+                                   form_data=form_data, 
+                                   field_errors=field_errors,
+                                   current_date=current_date.strftime('%Y-%m-%d'))
             
             # Handle profile photo upload
             if 'photo' not in request.files or not request.files['photo'].filename:
-                error_msg = 'Profile picture is required'
-                return render_template('register.html', form_data=form_data, error=error_msg)
+                field_errors['photo'] = 'Profile picture is required'
+                return render_template('register.html', form_data=form_data, field_errors=field_errors, current_date=current_date.strftime('%Y-%m-%d'))
 
             file = request.files['photo']
             try:
@@ -2389,13 +2376,13 @@ def register():
                 file_size = file.tell()
                 file.seek(0)
                 if file_size > 5 * 1024 * 1024:
-                    error_msg = 'File is too large. Maximum file size is 5MB.'
-                    return render_template('register.html', form_data=form_data, error=error_msg)
+                    field_errors['photo'] = 'File is too large. Maximum file size is 5MB.'
+                    return render_template('register.html', form_data=form_data, field_errors=field_errors, current_date=current_date.strftime('%Y-%m-%d'))
 
                 # Check file type
                 if not allowed_file(file.filename):
-                    error_msg = 'Invalid file type. Please upload a JPEG, PNG, or GIF image.'
-                    return render_template('register.html', form_data=form_data, error=error_msg)
+                    field_errors['photo'] = 'Invalid file type. Please upload a JPEG, PNG, or GIF image.'
+                    return render_template('register.html', form_data=form_data, field_errors=field_errors, current_date=current_date.strftime('%Y-%m-%d'))
 
                 # Secure the filename and save it
                 filename = secure_filename(file.filename)
@@ -2421,8 +2408,8 @@ def register():
                 
             except Exception as photo_err:
                 print(f"Error processing photo: {photo_err}")
-                error_msg = 'An error occurred while uploading the photo'
-                return render_template('register.html', form_data=form_data, error=error_msg)
+                field_errors['photo'] = 'An error occurred while uploading the photo'
+                return render_template('register.html', form_data=form_data, field_errors=field_errors, current_date=current_date.strftime('%Y-%m-%d'))
             
             # Generate username
             username = generate_username(form_data['full_name'])
@@ -2489,8 +2476,8 @@ def register():
                 except Exception as e:
                     print(f"Error in user creation: {str(e)}")
                     db.session.rollback()
-                    error_msg = 'Error creating user. Please try again.'
-                    return render_template('register.html', form_data=form_data, error=error_msg)
+                    field_errors['general'] = 'Error creating user. Please try again.'
+                    return render_template('register.html', form_data=form_data, field_errors=field_errors)
                 
                 # Send OTP email
                 if send_otp_email(user.email, email_otp):
@@ -2527,9 +2514,200 @@ def register():
                 print(f"{key}: {value}")
             
             flash(f'Error during registration: {str(e)}', 'danger')
-            return render_template('register.html', form_data=form_data, error=str(e))
+            return render_template('register.html', form_data=form_data, field_errors={'general': str(e)})
     
-    return render_template('register.html', form_data={})
+    return render_template('register.html', form_data={}, field_errors={})
+
+
+@app.route('/deeplink')
+@app.route('/deeplink/<path:deeplink_path>')
+def handle_deeplink(deeplink_path=None):
+    """
+    Handle deeplink requests from mobile app
+    Supports:
+    - fuetime://profile/{user_id}
+    - fuetime://job/{job_id}
+    - fuetime://message/{user_id}
+    - fuetime://register
+    - fuetime://login
+    """
+    from flask import request, jsonify, redirect, url_for
+    
+    # Get query parameters
+    user_agent = request.headers.get('User-Agent', '').lower()
+    is_mobile_app = 'capacitor' in user_agent or 'fuetime' in user_agent
+    
+    # Log the deeplink request for debugging
+    print(f"\n=== Deeplink Request ===")
+    print(f"Path: {deeplink_path}")
+    print(f"Query: {dict(request.args)}")
+    print(f"User Agent: {user_agent}")
+    print(f"Is Mobile App: {is_mobile_app}")
+    
+    if not deeplink_path:
+        # Base deeplink handler - redirect to main page
+        if is_mobile_app:
+            return jsonify({
+                'status': 'redirect',
+                'url': url_for('main.index'),
+                'message': 'Redirecting to main page'
+            })
+        else:
+            return redirect(url_for('main.index'))
+    
+    # Parse deeplink path
+    path_parts = deeplink_path.strip('/').split('/')
+    
+    if len(path_parts) >= 1:
+        action = path_parts[0]
+        target_id = path_parts[1] if len(path_parts) > 1 else None
+        
+        # Handle different deeplink actions
+        if action == 'profile' and target_id:
+            if is_mobile_app:
+                return jsonify({
+                    'status': 'redirect',
+                    'url': f'/profile/{target_id}',
+                    'action': 'view_profile',
+                    'user_id': target_id,
+                    'message': f'Opening profile {target_id}'
+                })
+            else:
+                return redirect(url_for('profile.view_profile', user_id=target_id))
+                
+        elif action == 'job' and target_id:
+            if is_mobile_app:
+                return jsonify({
+                    'status': 'redirect',
+                    'url': f'/job/{target_id}',
+                    'action': 'view_job',
+                    'job_id': target_id,
+                    'message': f'Opening job {target_id}'
+                })
+            else:
+                return redirect(url_for('main.job_details', job_id=target_id))
+                
+        elif action == 'message' and target_id:
+            if is_mobile_app:
+                return jsonify({
+                    'status': 'redirect',
+                    'url': f'/messages/{target_id}',
+                    'action': 'open_chat',
+                    'user_id': target_id,
+                    'message': f'Opening chat with {target_id}'
+                })
+            else:
+                return redirect(url_for('messages.chat', user_id=target_id))
+                
+        elif action == 'register':
+            if is_mobile_app:
+                return jsonify({
+                    'status': 'redirect',
+                    'url': '/register',
+                    'action': 'register',
+                    'message': 'Opening registration page'
+                })
+            else:
+                return redirect(url_for('register'))
+                
+        elif action == 'login':
+            if is_mobile_app:
+                return jsonify({
+                    'status': 'redirect',
+                    'url': '/login',
+                    'action': 'login',
+                    'message': 'Opening login page'
+                })
+            else:
+                return redirect(url_for('login'))
+                
+        elif action == 'reset-password':
+            if is_mobile_app:
+                return jsonify({
+                    'status': 'redirect',
+                    'url': '/reset-password',
+                    'action': 'reset_password',
+                    'token': request.args.get('token'),
+                    'message': 'Opening password reset page'
+                })
+            else:
+                return redirect(url_for('reset_password', token=request.args.get('token')))
+    
+    # Default: handle unknown deeplinks
+    if is_mobile_app:
+        return jsonify({
+            'status': 'error',
+            'message': f'Unknown deeplink: {deeplink_path}',
+            'fallback_url': url_for('main.index')
+        }), 400
+    else:
+        return redirect(url_for('main.index'))
+
+@app.route('/test-deeplink')
+def test_deeplink():
+    """Test page for deeplink functionality"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Deeplink Test - Fuetime</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .deeplink-test { margin: 10px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+            .deeplink-url { background: #f5f5f5; padding: 10px; font-family: monospace; word-break: break-all; }
+            button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+            button:hover { background: #0056b3; }
+        </style>
+    </head>
+    <body>
+        <h1>Fuetime Deeplink Test</h1>
+        
+        <div class="deeplink-test">
+            <h3>Test Deeplinks</h3>
+            <div class="deeplink-url">fuetime://profile/123</div>
+            <button onclick="testDeeplink('profile/123')">Test Profile Deeplink</button>
+        </div>
+        
+        <div class="deeplink-test">
+            <div class="deeplink-url">fuetime://job/456</div>
+            <button onclick="testDeeplink('job/456')">Test Job Deeplink</button>
+        </div>
+        
+        <div class="deeplink-test">
+            <div class="deeplink-url">fuetime://message/789</div>
+            <button onclick="testDeeplink('message/789')">Test Message Deeplink</button>
+        </div>
+        
+        <div class="deeplink-test">
+            <div class="deeplink-url">fuetime://register</div>
+            <button onclick="testDeeplink('register')">Test Register Deeplink</button>
+        </div>
+        
+        <div class="deeplink-test">
+            <div class="deeplink-url">fuetime://login</div>
+            <button onclick="testDeeplink('login')">Test Login Deeplink</button>
+        </div>
+        
+        <div id="result"></div>
+        
+        <script>
+        function testDeeplink(path) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing deeplink: ' + path + '</p>';
+            
+            fetch('/deeplink/' + path)
+                .then(response => response.json())
+                .then(data => {
+                    resultDiv.innerHTML = '<h3>Result:</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = '<p style="color: red;">Error: ' + error.message + '</p>';
+                });
+        }
+        </script>
+    </body>
+    </html>
+    '''
 
 
 @app.route('/check-email', methods=['POST'])
@@ -3388,13 +3566,6 @@ def edit_profile():
             
             # Emit to the specific user's room
             socketio.emit('profile_updated', user_data, room='user_' + str(current_user.id))
-            
-            # Also emit to any admin rooms if needed
-            socketio.emit('admin_profile_updated', {
-                'user_id': current_user.id,
-                'username': current_user.username,
-                'timestamp': datetime.now().isoformat()
-            }, namespace='/admin')
             
             print(f"Successfully emitted profile_updated event for user {current_user.id}")
             print("User data sent:", json.dumps(user_data, indent=2))
@@ -6089,58 +6260,7 @@ if __name__ == '__main__':
         sys.exit(1)
     
     # Socket.IO event handlers (optional)
-USE_WEBSOCKETS = True  # Set to False to disable WebSockets
-
-if USE_WEBSOCKETS:
-    @socketio.on('connect')
-    def handle_connect():
-        try:
-            if not current_user.is_authenticated:
-                app.logger.warning(f'Unauthenticated connection attempt from {request.sid}')
-                return False  # Reject the connection
-                
-            app.logger.info(f'Client connected: {request.sid}, User: {current_user.id if current_user.is_authenticated else "Anonymous"}')
-            
-            # Update user's online status
-            if current_user.is_authenticated:
-                user = User.query.get(current_user.id)
-                if user:
-                    user.is_online = True
-                    user.last_seen = datetime.utcnow()
-                    db.session.commit()
-                    
-                    # Broadcast user's online status
-                    socketio.emit('user_status', {
-                        'user_id': user.id,
-                        'is_online': True,
-                        'last_seen': user.last_seen.isoformat()
-                    }, namespace='/')
-                    
-        except Exception as e:
-            app.logger.error(f'Error in handle_connect: {str(e)}', exc_info=True)
-            return False
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    try:
-        app.logger.info(f'Client disconnected: {request.sid}')
-        
-        if current_user.is_authenticated:
-            user = User.query.get(current_user.id)
-            if user:
-                user.is_online = False
-                user.last_seen = datetime.utcnow()
-                db.session.commit()
-                
-                # Broadcast user's offline status
-                socketio.emit('user_status', {
-                    'user_id': user.id,
-                    'is_online': False,
-                    'last_seen': user.last_seen.isoformat()
-                }, namespace='/')
-                
-    except Exception as e:
-        app.logger.error(f'Error in handle_disconnect: {str(e)}', exc_info=True)
+# Duplicate Socket.IO handlers removed - using the ones defined earlier
         try:
             db.session.rollback()
         except:
@@ -6162,13 +6282,8 @@ def handle_user_online(data):
         user.last_seen = datetime.utcnow()
         db.session.commit()
         
-        # Broadcast user online status to all connected clients
-        socketio.emit('user_status', {
-            'user_id': user.id,
-            'is_online': True,
-            'last_seen': user.last_seen.isoformat(),
-            'username': user.username
-        }, namespace='/')
+        # Only update status, don't broadcast to all users
+        # Status updates will be sent through room-based messaging
         
         app.logger.info(f'User {user.id} is now online')
         return {'status': 'success', 'user_id': user.id}
@@ -6202,13 +6317,8 @@ def handle_user_offline(data=None):
         user.last_seen = datetime.utcnow()
         db.session.commit()
         
-        # Broadcast user offline status to all connected clients
-        socketio.emit('user_status', {
-            'user_id': user.id,
-            'is_online': False,
-            'last_seen': user.last_seen.isoformat(),
-            'username': user.username
-        }, namespace='/')
+        # Only update status, don't broadcast to all users
+        # Status updates will be sent through room-based messaging
         
         app.logger.info(f'User {user.id} is now offline')
         return {'status': 'success', 'user_id': user.id}
@@ -6287,71 +6397,15 @@ def handle_user_logout():
             # Leave all rooms
             leave_room(f'user_{user_id}')
             
-            # Acknowledge the logout
-            emit('logout_acknowledged', {'status': 'success'})
+            # Acknowledge the logout to the specific user
+            emit('logout_acknowledged', {'status': 'success'}, room=f'user_{user_id}')
             
     except Exception as e:
         app.logger.error(f'Error during user_logout: {str(e)}')
         db.session.rollback()
-        emit('logout_acknowledged', {'status': 'error', 'message': str(e)})
+        emit('logout_acknowledged', {'status': 'error', 'message': str(e)}, room=f'user_{user_id}')
 
-@socketio.on('join')
-def on_join(data):
-    try:
-        room = data.get('room')
-        if not room:
-            emit('join_error', {'error': 'No room specified'})
-            return
-            
-        # Get list of rooms this client is in
-        rooms = socketio.server.rooms(request.sid)
-        
-        # Don't join if already in the room
-        if room in rooms:
-            emit('join_success', {'room': room, 'status': 'already_joined'})
-            return
-            
-        # Join the room
-        join_room(room)
-        print(f'Client {request.sid} joined room: {room}')
-        
-        # Notify client of successful join
-        emit('join_success', {'room': room, 'status': 'joined'})
-        
-    except Exception as e:
-        error_msg = str(e)
-        print(f'Error in join event: {error_msg}')
-        import traceback
-        traceback.print_exc()
-        emit('join_error', {'error': error_msg})
-
-@socketio.on('leave')
-def on_leave(data):
-    try:
-        room = data.get('room')
-        if not room:
-            emit('leave_error', {'error': 'No room specified'})
-            return
-            
-        # Only leave if in the room
-        rooms = socketio.server.rooms(request.sid)
-        if room not in rooms:
-            emit('leave_error', {'error': 'Not in room', 'room': room})
-            return
-            
-        # Leave the room
-        leave_room(room)
-        print(f'Client {request.sid} left room: {room}')
-        
-        # Notify client of successful leave
-        emit('leave_success', {'room': room})
-        
-    except Exception as e:
-        error_msg = str(e)
-        print(f'Error in leave event: {error_msg}')
-        import traceback
-        traceback.print_exc()
-        emit('leave_error', {'error': error_msg})
+# Duplicate join/leave handlers removed - using the ones defined earlier
 
 @app.route('/portfolio/project/<int:project_id>')
 @login_required
@@ -6504,25 +6558,13 @@ if __name__ == '__main__':
             app.logger.error(f'Failed to create upload directories: {str(e)}')
             raise
             
-        # Initialize SocketIO with the app
-        if socketio is None:
-            app.logger.error("Fatal: socketio is not initialized")
-            raise RuntimeError("Socket.IO not properly initialized")
-            
+        # Socket.IO is already initialized at line 75, no need to reinitialize
+        # Just register the event handlers
         try:
-            socketio.init_app(app,
-                           cors_allowed_origins="*",
-                           async_mode='gevent',
-                           engineio_logger=True,
-                           logger=True,
-                           ping_timeout=60,
-                           manage_session=False)
+            init_socketio_handlers()
         except Exception as e:
-            app.logger.error(f"Error initializing Socket.IO: {e}")
+            app.logger.error(f"Error registering Socket.IO handlers: {e}")
             raise
-            
-        # Register socket.io event handlers
-        init_socketio_handlers()
         
         # Start the SocketIO server
         app.logger.info('Starting SocketIO server...')
@@ -6532,32 +6574,7 @@ if __name__ == '__main__':
             port=5000,
             debug=app.debug,
             use_reloader=app.debug,
-            allow_unsafe_werkzeug=True,
-            log_output=True
-        )
-        
-    except Exception as run_err:
-        error_msg = '\n--- APPLICATION RUN ERROR ---\n'
-        error_msg += f'Error: {run_err}\n'
-        error_msg += '\n'.join(traceback.format_exception(type(run_err), run_err, run_err.__traceback__))
-        
-        # Log to file if possible, otherwise print to console
-        if 'app' in locals() and hasattr(app, 'logger'):
-            app.logger.critical(error_msg)
-        else:
-            print(error_msg, file=sys.stderr)
-            
-        sys.exit(1)
-
-        # Start the SocketIO server
-        app.logger.info('Starting SocketIO server...')
-        socketio.run(
-            app,
-            host='0.0.0.0',
-            port=5000,
-            debug=app.debug,
-            use_reloader=app.debug,
-            allow_unsafe_werkzeug=True,
+            allow_unsafe_werkzeug=False,  # Fix for WSGI write() before start_response
             log_output=True
         )
         

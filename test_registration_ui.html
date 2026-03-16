@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Form Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+        button { padding: 10px 15px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Registration Form Functionality Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: LocalStorage Functionality</h2>
+        <button onclick="testLocalStorage()">Test LocalStorage</button>
+        <div id="localStorage-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Form Data Persistence</h2>
+        <button onclick="window.open('http://localhost:5000/register', '_blank')">Open Registration Form</button>
+        <p>Instructions:</p>
+        <ol>
+            <li>Fill in some form fields (name, email, phone)</li>
+            <li>Refresh the page (F5)</li>
+            <li>Check if data is still there</li>
+            <li>Submit the form with errors to check field-specific error messages</li>
+        </ol>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Error Handling</h2>
+        <p>Test these scenarios in the registration form:</p>
+        <ul>
+            <li>Submit empty form - should show field-specific errors</li>
+            <li>Enter invalid email - should show email field error</li>
+            <li>Enter invalid phone - should show phone field error</li>
+            <li>Enter duplicate email/phone - should show specific error</li>
+            <li>Upload invalid file - should show photo field error</li>
+        </ul>
+    </div>
+
+    <script>
+        function testLocalStorage() {
+            const result = document.getElementById('localStorage-result');
+            
+            try {
+                // Test localStorage availability
+                localStorage.setItem('test', 'test');
+                localStorage.removeItem('test');
+                
+                // Test the specific key used by registration form
+                const testKey = 'registrationFormData';
+                const testData = {
+                    'full_name': 'Test User',
+                    'email': 'test@example.com',
+                    'phone': '1234567890'
+                };
+                
+                localStorage.setItem(testKey, JSON.stringify(testData));
+                const retrieved = JSON.parse(localStorage.getItem(testKey));
+                
+                if (retrieved.full_name === 'Test User' && 
+                    retrieved.email === 'test@example.com' && 
+                    retrieved.phone === '1234567890') {
+                    
+                    result.innerHTML = '<span class="success">✓ LocalStorage is working correctly</span>';
+                    localStorage.removeItem(testKey); // Clean up
+                } else {
+                    result.innerHTML = '<span class="error">✗ LocalStorage data retrieval failed</span>';
+                }
+                
+            } catch (e) {
+                result.innerHTML = `<span class="error">✗ LocalStorage error: ${e.message}</span>`;
+            }
+        }
+        
+        // Run localStorage test on page load
+        window.onload = function() {
+            testLocalStorage();
+        };
+    </script>
+</body>
+</html>

@@ -46,13 +46,13 @@ def register_socket_events():
     @login_required
     def handle_connect():
         join_room(f'user_{current_user.id}')
-        emit('status', {'user_id': current_user.id, 'status': 'online'}, broadcast=True)
+        emit('status', {'user_id': current_user.id, 'status': 'online'}, room=f'user_{current_user.id}')
     
     @socketio.on('disconnect')
     @login_required
     def handle_disconnect():
         leave_room(f'user_{current_user.id}')
-        emit('status', {'user_id': current_user.id, 'status': 'offline'}, broadcast=True)
+        emit('status', {'user_id': current_user.id, 'status': 'offline'}, room=f'user_{current_user.id}')
     
     @socketio.on('message')
     @login_required

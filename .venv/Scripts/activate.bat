@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set "VIRTUAL_ENV=C:\Users\Admin\fuetime2\Fuetimeplus\.venv"
+set "VIRTUAL_ENV=C:\Users\Admin\Fuetimeplus\.venv"
 
 if not defined PROMPT set PROMPT=$P$G
 

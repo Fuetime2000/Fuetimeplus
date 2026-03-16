@@ -11,8 +11,7 @@ from app import app, socketio
 # This is the WSGI callable
 application = app
 
-# Socket.IO initialization
-socketio.init_app(application, cors_allowed_origins="*")
+# Socket.IO is already initialized in app.py
 
 if __name__ == "__main__":
     # Run the application with SocketIO support

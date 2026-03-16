@@ -5,6 +5,35 @@
   "server": {
     "androidScheme": "https",
     "hostname": "localhost",
-    "url": "http://localhost:5000"
+    "url": "http://localhost:5000",
+    "cleartext": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  },
+  "urlHandlers": [
+    {
+      "url": "fuetime://",
+      "name": "Fuetime App"
+    },
+    {
+      "url": "https://fuetime.com",
+      "name": "Fuetime Web"
+    },
+    {
+      "url": "https://www.fuetime.com", 
+      "name": "Fuetime Web WWW"
+    }
+  ],
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "ios": {
+    "allowMixedContent": true,
+    "captureInput": true
   }
 }

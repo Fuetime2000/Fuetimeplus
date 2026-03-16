@@ -116,6 +116,11 @@
                     {{ error }}
                 </div>
                 {% endif %}
+                {% if field_errors and field_errors.get('general') %}
+                <div class="alert alert-danger m-3" role="alert">
+                    {{ field_errors.general }}
+                </div>
+                {% endif %}
                 <div class="card-body p-4 p-md-5 bg-light">
                     {% with messages = get_flashed_messages(with_categories=true) %}
                         {% if messages %}
@@ -141,52 +146,76 @@
                             </div>
                             <div class="col-12">
                                 <div class="form-floating mb-3 position-relative">
-                                    <input type="text" class="form-control" id="full_name" name="full_name" 
+                                    <input type="text" class="form-control {% if field_errors and field_errors.get('full_name') %}is-invalid{% endif %}" id="full_name" name="full_name" 
                                            required minlength="3" maxlength="100"
                                            pattern="[A-Za-z .]+" placeholder="John Doe"
                                            value="{{ form_data.get('full_name', '') }}">
                                     <label for="full_name" data-translate="full_name">Full Name</label>
+                                    {% if field_errors and field_errors.get('full_name') %}
+                                    <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" style="display: block;">
+                                        {{ field_errors.full_name }}
+                                    </div>
+                                    {% else %}
                                     <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" data-translate="full_name">
                                         Please enter your full name (only letters, spaces, and dots allowed)
                                     </div>
+                                    {% endif %}
                                 </div>
                             </div>
 
                             <div class="col-12 worker-field" id="dateOfBirthField">
                                 <div class="form-floating mb-3 position-relative">
-                                    <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" 
+                                    <input type="date" class="form-control {% if field_errors and field_errors.get('date_of_birth') %}is-invalid{% endif %}" id="date_of_birth" name="date_of_birth" 
                                            required
                                            value="{{ form_data.get('date_of_birth', '') }}"
                                            max="{{ current_date }}">
                                     <label for="date_of_birth" data-translate="date_of_birth">Date of Birth *</label>
+                                    {% if field_errors and field_errors.get('date_of_birth') %}
+                                    <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" style="display: block;">
+                                        {{ field_errors.date_of_birth }}
+                                    </div>
+                                    {% else %}
                                     <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" data-translate="date_of_birth">
                                         Please enter your date of birth (must be at least 18 years old)
                                     </div>
+                                    {% endif %}
                                 </div>
                             </div>
 
                             <div class="col-md-6">
                                 <div class="form-floating mb-3 position-relative">
-                                    <input type="email" class="form-control" id="email" name="email" 
+                                    <input type="email" class="form-control {% if field_errors and field_errors.get('email') %}is-invalid{% endif %}" id="email" name="email" 
                                            required placeholder="name@example.com"
                                            value="{{ form_data.get('email', '') }}">
                                     <label for="email" data-translate="email">Email Address</label>
+                                    {% if field_errors and field_errors.get('email') %}
+                                    <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" style="display: block;">
+                                        {{ field_errors.email }}
+                                    </div>
+                                    {% else %}
                                     <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" data-translate="email">
                                         Please enter a valid email address
                                     </div>
+                                    {% endif %}
                                 </div>
                             </div>
 
                             <div class="col-md-6">
                                 <div class="form-floating mb-3 position-relative">
-                                    <input type="tel" class="form-control" id="phone" name="phone" 
+                                    <input type="tel" class="form-control {% if field_errors and field_errors.get('phone') %}is-invalid{% endif %}" id="phone" name="phone" 
                                            required pattern="[0-9]{10}" maxlength="10"
                                            placeholder="1234567890"
                                            value="{{ form_data.get('phone', '') }}">
                                     <label for="phone" data-translate="phone">Phone Number</label>
+                                    {% if field_errors and field_errors.get('phone') %}
+                                    <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" style="display: block;">
+                                        {{ field_errors.phone }}
+                                    </div>
+                                    {% else %}
                                     <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" data-translate="phone">
                                         Please enter a valid 10-digit phone number
                                     </div>
+                                    {% endif %}
                                 </div>
                             </div>
 
@@ -539,15 +568,21 @@
 
                             <div class="col-12">
                                 <div class="form-floating mb-3 position-relative">
-                                    <input type="text" class="form-control" id="live_location" name="live_location" 
+                                    <input type="text" class="form-control {% if field_errors and field_errors.get('live_location') %}is-invalid{% endif %}" id="live_location" name="live_location" 
                                            required
                                            maxlength="200"
                                            placeholder="Your permanent address"
                                            value="{{ form_data.get('live_location', '') }}">
                                     <label for="live_location" data-translate="live_location"> Village</label>
+                                    {% if field_errors and field_errors.get('live_location') %}
+                                    <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" style="display: block;">
+                                        {{ field_errors.live_location }}
+                                    </div>
+                                    {% else %}
                                     <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" data-translate="live_location">
                                         Please enter your Village
                                     </div>
+                                    {% endif %}
                                 </div>
                             </div>
 
@@ -635,14 +670,20 @@
                             <div class="col-12">
                                 <div class="mb-3">
                                     <label for="photo" class="form-label">Profile Picture <span class="text-danger">*</span></label>
-                                    <input type="file" class="form-control" id="photo" name="photo"
+                                    <input type="file" class="form-control {% if field_errors and field_errors.get('photo') %}is-invalid{% endif %}" id="photo" name="photo"
                                            accept="image/*" required>
+                                    {% if field_errors and field_errors.get('photo') %}
+                                    <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2" style="display: block;">
+                                        {{ field_errors.photo }}
+                                    </div>
+                                    {% else %}
                                     <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2">
                                         Please upload a profile picture
                                     </div>
                                     <div class="invalid-feedback position-absolute start-0 bottom-100 pb-2">
                                         Please select a valid image file
                                     </div>
+                                    {% endif %}
                                 </div>
                             </div>
 
@@ -681,6 +722,115 @@
 <script>
 // Wait for the DOM to be fully loaded
 document.addEventListener('DOMContentLoaded', function() {
+    // Form data persistence using localStorage
+    const FORM_DATA_KEY = 'registrationFormData';
+    
+    // Save form data to localStorage
+    function saveFormData() {
+        const form = document.getElementById('registrationForm');
+        if (!form) return;
+        
+        const formData = new FormData(form);
+        const data = {};
+        
+        // Save all form fields except password and photo
+        for (let [key, value] of formData.entries()) {
+            if (key !== 'password' && key !== 'confirm_password' && key !== 'photo') {
+                data[key] = value;
+            }
+        }
+        
+        // Also save select values and checkbox states
+        const selects = form.querySelectorAll('select');
+        selects.forEach(select => {
+            if (select.name && select.name !== 'password' && select.name !== 'confirm_password') {
+                data[select.name] = select.value;
+            }
+        });
+        
+        localStorage.setItem(FORM_DATA_KEY, JSON.stringify(data));
+        console.log('Form data saved to localStorage');
+    }
+    
+    // Load form data from localStorage
+    function loadFormData() {
+        const savedData = localStorage.getItem(FORM_DATA_KEY);
+        if (!savedData) return;
+        
+        try {
+            const data = JSON.parse(savedData);
+            const form = document.getElementById('registrationForm');
+            if (!form) return;
+            
+            // Restore text inputs and selects
+            Object.keys(data).forEach(key => {
+                const input = form.querySelector(`[name="${key}"]`);
+                if (input) {
+                    if (input.type === 'radio' || input.type === 'checkbox') {
+                        // Handle radio/checkbox if needed
+                        const radioButton = form.querySelector(`[name="${key}"][value="${data[key]}"]`);
+                        if (radioButton) radioButton.checked = true;
+                    } else {
+                        input.value = data[key];
+                    }
+                }
+            });
+            
+            // Trigger change events for select2
+            const selects = form.querySelectorAll('select.select2');
+            selects.forEach(select => {
+                if (select.value) {
+                    $(select).trigger('change');
+                }
+            });
+            
+            console.log('Form data loaded from localStorage');
+        } catch (e) {
+            console.error('Error loading form data from localStorage:', e);
+        }
+    }
+    
+    // Clear form data from localStorage
+    function clearFormData() {
+        localStorage.removeItem(FORM_DATA_KEY);
+        console.log('Form data cleared from localStorage');
+    }
+    
+    // Auto-save form data on input change
+    const form = document.getElementById('registrationForm');
+    if (form) {
+        // Load saved data on page load
+        loadFormData();
+        
+        // Save data on input changes
+        const inputs = form.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('input', saveFormData);
+            input.addEventListener('change', saveFormData);
+        });
+        
+        // Clear data on successful form submission
+        form.addEventListener('submit', function(e) {
+            // Don't clear immediately, wait a bit to see if submission is successful
+            setTimeout(() => {
+                // Only clear if we're not still on the registration page
+                if (window.location.pathname === '/register') {
+                    // If we're still on the registration page, don't clear (submission likely failed)
+                    return;
+                }
+                clearFormData();
+            }, 1000);
+        });
+        
+        // Also clear data when manually leaving the page
+        window.addEventListener('beforeunload', function() {
+            // Don't clear on refresh, only on navigation away
+            if (performance.navigation.type !== 1) { // 1 = refresh
+                // Comment out the line below if you want to keep data even when navigating away
+                // clearFormData();
+            }
+        });
+    }
     // Tooltip messages for each field
     const fieldMessages = {
         'full_name': 'Enter your full name as per your ID proof (only letters, spaces, and dots)',

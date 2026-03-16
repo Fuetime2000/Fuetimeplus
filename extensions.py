@@ -1,14 +1,28 @@
 import sys
 
 # Apply monkey patching before any other imports
-try:
-    from gevent import monkey
-    monkey.patch_all()
-    print("Using gevent for SocketIO")
-    async_mode = 'gevent'
-except ImportError:
-    print("Warning: gevent is not available. Using threading mode")
+import sys
+import platform
+
+# Use threading mode on Windows for better compatibility
+if platform.system() == 'Windows':
+    print("Using threading mode for SocketIO on Windows")
     async_mode = 'threading'
+else:
+    try:
+        import eventlet
+        eventlet.monkey_patch()
+        print("Using eventlet for SocketIO")
+        async_mode = 'eventlet'
+    except ImportError:
+        try:
+            from gevent import monkey
+            monkey.patch_all()
+            print("Using gevent for SocketIO")
+            async_mode = 'gevent'
+        except ImportError:
+            print("Warning: eventlet/gevent not available. Using threading mode")
+            async_mode = 'threading'
 
 # Now import other modules after monkey patching
 from flask_sqlalchemy import SQLAlchemy
@@ -34,14 +48,22 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-# Initialize SocketIO
+# Initialize SocketIO with improved configuration
 socketio = SocketIO(
     cors_allowed_origins="*",
     async_mode=async_mode,
-    engineio_logger=True,
-    logger=True,
+    engineio_logger=False,  # Reduce log noise
+    logger=False,  # Reduce log noise
     ping_timeout=60,
-    manage_session=False  # Let Flask handle the session
+    ping_interval=25,
+    manage_session=False,  # Let Flask manage sessions
+    socketio_path='socket.io',
+    always_connect=True,  # Ensure connections are established
+    transports=['polling'],  # Start with polling only for stability
+    allow_upgrades=False,  # Disable upgrades to prevent WSGI issues
+    websocket_timeout=5,  # WebSocket timeout
+    http_compression=True,  # Enable compression
+    compression_level=3  # Compression level
 )
 
 # Initialize CSRF protection

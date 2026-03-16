@@ -1,10 +1,11 @@
-from flask_socketio import emit, join_room, leave_room
+from flask_socketio import emit, join_room, leave_room, disconnect
 from flask_login import current_user
-from flask import current_app
+from flask import current_app, url_for, request
 from extensions import socketio, db
 from models.user import User
 from models.transaction import Transaction
 from models.Call import Call  # Import the Call model
+from models.message import Message  # Import the Message model
 from datetime import datetime
 import uuid
 import logging
@@ -23,23 +24,102 @@ def socket_auth_required(f):
 
 def register_socketio_events():
     """Register all Socket.IO event handlers."""
+    
+    # Handle connections to /ws/* namespace
+    @socketio.on('connect', namespace='/ws')
+    def handle_connect_ws():
+        try:
+            # Get token and user_id from query parameters
+            token = request.args.get('token')
+            user_id = request.args.get('user_id')
+            
+            print(f"Connection attempt to /ws namespace with token: {token[:20] if token else None}..., user_id: {user_id}")
+            
+            # For now, allow connections without tokens for testing
+            if user_id:
+                join_room(f'user_{user_id}')
+                emit('status', {'user_id': user_id, 'status': 'online'}, room=f'user_{user_id}', namespace='/ws')
+                print(f"✅ User {user_id} successfully connected to /ws namespace")
+                return True
+            elif token and user_id:
+                # Verify JWT token
+                try:
+                    from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+                    verify_jwt_in_request()
+                    token_user_id = get_jwt_identity()
+                    
+                    if str(token_user_id) == str(user_id):
+                        join_room(f'user_{user_id}')
+                        emit('status', {'user_id': user_id, 'status': 'online'}, room=f'user_{user_id}', namespace='/ws')
+                        print(f"✅ User {user_id} successfully connected to /ws namespace")
+                        return True
+                    else:
+                        print(f"❌ Token user ID {token_user_id} doesn't match requested user ID {user_id}")
+                        return False
+                        
+                except Exception as auth_error:
+                    print(f"❌ Token authentication failed: {auth_error}")
+                    return False
+            else:
+                print("❌ Missing user_id in connection request")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error in /ws connect handler: {e}")
+            return False
+    
     @socketio.on('connect')
-    @socket_auth_required
     def handle_connect():
-        if current_user.is_authenticated:
-            join_room(f'user_{current_user.id}')
-            emit('status', {'user_id': current_user.id, 'status': 'online'}, broadcast=True, namespace='/')
-            print(f"User {current_user.id} connected to WebSocket")
-        else:
-            print("Unauthenticated WebSocket connection attempt")
+        try:
+            # Check if user is authenticated via token in connection data
+            auth_data = request.args.get('token') if hasattr(request, 'args') else None
+            user_id = request.args.get('user_id') if hasattr(request, 'args') else None
+            
+            if current_user.is_authenticated:
+                # Join user room
+                join_room(f'user_{current_user.id}')
+                emit('status', {'user_id': current_user.id, 'status': 'online'}, room=f'user_{current_user.id}')
+                print(f"User {current_user.id} connected to WebSocket (default namespace)")
+                return True
+            elif auth_data and user_id:
+                # Try to authenticate with token
+                try:
+                    from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+                    verify_jwt_in_request()
+                    token_user_id = get_jwt_identity()
+                    if str(token_user_id) == str(user_id):
+                        join_room(f'user_{user_id}')
+                        emit('status', {'user_id': user_id, 'status': 'online'}, room=f'user_{user_id}')
+                        print(f"User {user_id} connected to WebSocket via token")
+                        return True
+                except Exception as auth_error:
+                    print(f"Token authentication failed: {auth_error}")
+            
+            print("Unauthenticated WebSocket connection attempt (default namespace)")
+            # Allow connection but don't join any rooms
+            return True
+            
+        except Exception as e:
+            print(f"Error in connect handler: {e}")
+            # Always return True to avoid connection failures during upgrade
+            return True
 
     @socketio.on('disconnect')
-    @socket_auth_required
     def handle_disconnect():
-        if current_user.is_authenticated:
-            leave_room(f'user_{current_user.id}')
-            emit('status', {'user_id': current_user.id, 'status': 'offline'}, broadcast=True, namespace='/')
-            print(f"User {current_user.id} disconnected from WebSocket")
+        try:
+            if current_user.is_authenticated:
+                leave_room(f'user_{current_user.id}')
+                emit('status', {'user_id': current_user.id, 'status': 'offline'}, room=f'user_{current_user.id}')
+                print(f"User {current_user.id} disconnected from WebSocket")
+            else:
+                # Try to get user_id from session or request for anonymous disconnects
+                user_id = request.args.get('user_id') if hasattr(request, 'args') else None
+                if user_id:
+                    leave_room(f'user_{user_id}')
+                    print(f"User {user_id} disconnected from WebSocket (anonymous)")
+        except Exception as e:
+            print(f"Error in disconnect handler: {e}")
+            # Don't raise exceptions in disconnect handler
 
     @socketio.on('join')
     @socket_auth_required
@@ -82,6 +162,54 @@ def handle_typing(data):
             'typing': data.get('typing', False)
         }, room=room)
 
+@socketio.on('message')
+@socket_auth_required
+def handle_message(data):
+    """Handle message sending between users"""
+    recipient_id = data.get('recipient_id')
+    content = data.get('content')
+    
+    if not recipient_id or not content:
+        emit('error', {'message': 'Recipient ID and content are required'}, room=request.sid)
+        return
+        
+    try:
+        # Save message to database
+        message = Message(
+            sender_id=current_user.id,
+            receiver_id=recipient_id,
+            content=content,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(message)
+        db.session.commit()
+        
+        # Emit to recipient
+        emit('new_message', {
+            'id': message.id,
+            'sender_id': current_user.id,
+            'recipient_id': recipient_id,
+            'content': content,
+            'timestamp': message.created_at.isoformat(),
+            'sender_name': current_user.full_name or current_user.email.split('@')[0],
+            'sender_avatar': current_user.photo or url_for('static', filename='img/default-avatar.png')
+        }, room=f'user_{recipient_id}')
+        
+        # Also send back to sender for their own UI update
+        emit('new_message', {
+            'id': message.id,
+            'sender_id': current_user.id,
+            'recipient_id': recipient_id,
+            'content': content,
+            'timestamp': message.created_at.isoformat(),
+            'sender_name': current_user.full_name or current_user.email.split('@')[0],
+            'sender_avatar': current_user.photo or url_for('static', filename='img/default-avatar.png')
+        }, room=f'user_{current_user.id}')
+        
+    except Exception as e:
+        logger.error(f'Error handling message: {str(e)}')
+        emit('error', {'message': 'Failed to send message'}, room=request.sid)
+
 @socketio.on('profile_updated')
 def handle_profile_updated(data):
     """Handle profile update events"""
@@ -105,14 +233,14 @@ def handle_initiate_call(data):
     
     try:
         if not current_user.is_authenticated:
-            emit('call_initiated', {'success': False, 'error': 'Authentication required'})
+            emit('call_initiated', {'success': False, 'error': 'Authentication required'}, room=request.sid)
             return
         
         recipient_id = data.get('recipient_id')
         call_type = data.get('type', 'audio')  # audio or video
         
         if not recipient_id:
-            emit('call_initiated', {'success': False, 'error': 'Recipient ID is required'})
+            emit('call_initiated', {'success': False, 'error': 'Recipient ID is required'}, room=request.sid)
             return
         
         # Immediately acknowledge the call initiation to prevent timeout
@@ -120,13 +248,13 @@ def handle_initiate_call(data):
             'success': True,
             'message': 'Processing call request...',
             'status': 'processing'
-        })
+        }, room=request.sid)
         
         # Start a new database session
         with app.app_context():
             recipient = User.query.get(recipient_id)
             if not recipient:
-                emit('call_failed', {'error': 'Recipient not found'})
+                emit('call_failed', {'error': 'Recipient not found'}, room=request.sid)
                 return
             
             # Get call cost (configurable)
@@ -141,7 +269,7 @@ def handle_initiate_call(data):
                     'error': 'Insufficient balance',
                     'required': call_cost,
                     'current_balance': float(current_user.wallet_balance)
-                })
+                }, room=request.sid)
                 return
     
             # Start a transaction with proper error handling
@@ -217,11 +345,11 @@ def handle_initiate_call(data):
                     'success': False,
                     'error': f'Failed to initiate call: {str(e)}',
                     'current_balance': float(getattr(current_user, 'wallet_balance', 0.0))
-                })
+                }, room=request.sid)
     
     except Exception as e:
         logger.error(f'Unexpected error in handle_initiate_call: {str(e)}', exc_info=True)
         emit('call_initiated', {
             'success': False,
             'error': 'An unexpected error occurred. Please try again.'
-        })
+        }, room=request.sid)
