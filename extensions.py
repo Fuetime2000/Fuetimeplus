@@ -48,19 +48,20 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-# Initialize SocketIO with improved configuration
+# Initialize SocketIO with WebSocket support
 socketio = SocketIO(
     cors_allowed_origins="*",
     async_mode=async_mode,
-    engineio_logger=False,  # Reduce log noise
-    logger=False,  # Reduce log noise
+    engineio_logger=True,  # Enable logging for debugging
+    logger=True,  # Enable logging for debugging
     ping_timeout=60,
     ping_interval=25,
     manage_session=False,  # Let Flask manage sessions
     socketio_path='socket.io',
     always_connect=True,  # Ensure connections are established
-    transports=['polling'],  # Start with polling only for stability
-    allow_upgrades=False,  # Disable upgrades to prevent WSGI issues
+    transports=['polling', 'websocket'],  # Enable both transports
+    allow_upgrades=True,  # Allow upgrades from polling to websocket
+    upgrade_timeout=10,  # Set upgrade timeout
     websocket_timeout=5,  # WebSocket timeout
     http_compression=True,  # Enable compression
     compression_level=3  # Compression level

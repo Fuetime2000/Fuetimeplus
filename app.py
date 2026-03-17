@@ -2220,7 +2220,7 @@ def register():
             print("\nRaw form data:", dict(request.form))
         
             # Collect form data with field-specific error handling
-            required_fields = ['email', 'phone', 'password', 'full_name', 'live_location']
+            required_fields = ['email', 'phone', 'password', 'full_name', 'live_location', 'current_location']
             
             # Process required fields and collect field-specific errors
             for field in required_fields:
@@ -2278,7 +2278,7 @@ def register():
             live_location = None
 
             # Validate required fields based on user type
-            required_fields = ['email', 'phone', 'password', 'full_name']
+            required_fields = ['email', 'phone', 'password', 'full_name', 'current_location']
             
             # Only require date_of_birth and live_location for workers
             if user_type == 'worker':
@@ -6574,7 +6574,7 @@ if __name__ == '__main__':
             port=5000,
             debug=app.debug,
             use_reloader=app.debug,
-            allow_unsafe_werkzeug=False,  # Fix for WSGI write() before start_response
+            allow_unsafe_werkzeug=True,  # Allow WebSocket upgrades
             log_output=True
         )
         
