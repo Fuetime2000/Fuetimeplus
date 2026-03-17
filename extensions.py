@@ -1,30 +1,11 @@
 import sys
-
-# Apply monkey patching before any other imports
-import sys
 import platform
 
-# Use threading mode on Windows for better compatibility
-if platform.system() == 'Windows':
-    print("Using threading mode for SocketIO on Windows")
-    async_mode = 'threading'
-else:
-    try:
-        import eventlet
-        eventlet.monkey_patch()
-        print("Using eventlet for SocketIO")
-        async_mode = 'eventlet'
-    except ImportError:
-        try:
-            from gevent import monkey
-            monkey.patch_all()
-            print("Using gevent for SocketIO")
-            async_mode = 'gevent'
-        except ImportError:
-            print("Warning: eventlet/gevent not available. Using threading mode")
-            async_mode = 'threading'
+# Force threading mode to avoid monkey patching issues with imports
+print("Forcing threading mode for SocketIO to avoid import lock conflicts")
+async_mode = 'threading'
 
-# Now import other modules after monkey patching
+# Import Flask extensions after setting async mode
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
@@ -49,21 +30,19 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-# Initialize SocketIO with WebSocket support
+# Initialize SocketIO with threading mode for stability
 socketio = SocketIO(
     cors_allowed_origins="*",
     async_mode=async_mode,
-    engineio_logger=True,  # Enable logging for debugging
-    logger=True,  # Enable logging for debugging
+    engineio_logger=False,  # Disable logging for production
+    logger=False,  # Disable logging for production
     ping_timeout=60,
     ping_interval=25,
     manage_session=False,  # Let Flask manage sessions
     socketio_path='socket.io',
     always_connect=True,  # Ensure connections are established
-    transports=['polling', 'websocket'],  # Enable both transports
-    allow_upgrades=True,  # Allow upgrades from polling to websocket
-    upgrade_timeout=10,  # Set upgrade timeout
-    websocket_timeout=5,  # WebSocket timeout
+    transports=['polling'],  # Use only polling to avoid WebSocket issues
+    allow_upgrades=False,  # Disable upgrades to prevent connection issues
     http_compression=True,  # Enable compression
     compression_level=3  # Compression level
 )
