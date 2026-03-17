@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from models.base import Base, db
+from .base import Base, db
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt

@@ -1,7 +1,7 @@
 from datetime import datetime
-from extensions import db
+from .base import db, Base
 
-class UserBehavior(db.Model):
+class UserBehavior(Base):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     ip_address = db.Column(db.String(45))
@@ -16,7 +16,7 @@ class UserBehavior(db.Model):
     def __repr__(self):
         return f'<UserBehavior {self.user_id} - {self.action_type}>'
 
-class FraudAlert(db.Model):
+class FraudAlert(Base):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     alert_type = db.Column(db.String(50))  # suspicious_login, payment_fraud, spam, etc.

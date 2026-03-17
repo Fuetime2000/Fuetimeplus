@@ -4,7 +4,7 @@ from models.report import Report
 from models.user import User
 from models.transaction import Transaction
 from models.contact_request import ContactRequest
-from extensions import db
+from models.base import db
 from datetime import datetime, timedelta
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')

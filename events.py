@@ -1,7 +1,8 @@
 from flask_socketio import emit, join_room, leave_room, disconnect
 from flask_login import current_user
 from flask import current_app, url_for, request
-from extensions import socketio, db
+from models.base import db
+from extensions import socketio
 from models.user import User
 from models.transaction import Transaction
 from models.Call import Call  # Import the Call model

@@ -1,8 +1,8 @@
 from datetime import datetime
-from . import db
+from . import db, Base
 from sqlalchemy import event
 
-class Call(db.Model):
+class Call(Base):
     __tablename__ = 'calls'
     
     id = db.Column(db.Integer, primary_key=True)

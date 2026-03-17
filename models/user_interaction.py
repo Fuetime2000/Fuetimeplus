@@ -1,7 +1,7 @@
 from datetime import datetime
-from .base import db
+from .base import db, Base
 
-class UserInteraction(db.Model):
+class UserInteraction(Base):
     """
     Model for tracking interactions between users (e.g., profile views, messages, etc.)
     """

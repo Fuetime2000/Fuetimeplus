@@ -37,7 +37,8 @@ from flask_limiter.util import get_remote_address
 from flask_mail import Mail
 
 # Initialize extensions
-db = SQLAlchemy()
+# Note: db is imported from models.base to avoid circular imports
+# Don't create db instance here - use the one from models.base
 login_manager = LoginManager()
 migrate = Migrate()
 babel = Babel()

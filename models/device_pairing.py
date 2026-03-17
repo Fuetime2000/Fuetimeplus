@@ -1,7 +1,7 @@
-from extensions import db
+from .base import db, Base
 from datetime import datetime
 
-class DevicePairing(db.Model):
+class DevicePairing(Base):
     """Model for storing device pairing relationships for emergency alerts"""
     __tablename__ = 'device_pairings'
     
@@ -32,7 +32,7 @@ class DevicePairing(db.Model):
         }
 
 
-class EmergencyAlert(db.Model):
+class EmergencyAlert(Base):
     """Model for logging emergency alerts"""
     __tablename__ = 'emergency_alerts'
     

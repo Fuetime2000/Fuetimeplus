@@ -1,5 +1,5 @@
 from datetime import datetime
-from extensions import db
+from .base import db, Base
 
 project_technologies = db.Table('portfolio_project_technologies',
     db.Column('project_id', db.Integer, db.ForeignKey('portfolio_projects.id'), primary_key=True),
@@ -7,7 +7,7 @@ project_technologies = db.Table('portfolio_project_technologies',
     extend_existing=True
 )
 
-class Technology(db.Model):
+class Technology(Base):
     __tablename__ = 'portfolio_technologies'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
@@ -21,7 +21,7 @@ class Technology(db.Model):
     def __repr__(self):
         return f'<Technology {self.name}>'
 
-class Project(db.Model):
+class Project(Base):
     __tablename__ = 'portfolio_projects'
     __table_args__ = {'extend_existing': True}
     id = db.Column(db.Integer, primary_key=True)

@@ -1,8 +1,8 @@
 from datetime import datetime
-from extensions import db
+from models.base import db, Base
 from sqlalchemy import func
 
-class Portfolio(db.Model):
+class Portfolio(Base):
     __tablename__ = 'portfolios'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -27,7 +27,7 @@ class Portfolio(db.Model):
     def total_ratings(self):
         return PortfolioRating.query.filter_by(portfolio_id=self.id).count()
 
-class PortfolioProject(db.Model):
+class PortfolioProject(Base):
     __tablename__ = 'portfolio_projects'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -60,7 +60,7 @@ class PortfolioProject(db.Model):
     def __repr__(self):
         return f'<PortfolioProject {self.title}>'
 
-class ProjectTechnology(db.Model):
+class ProjectTechnology(Base):
     __tablename__ = 'project_technologies'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -76,7 +76,7 @@ class ProjectTechnology(db.Model):
         return f'<ProjectTechnology {self.name} (Project ID: {self.project_id})>'
 
 
-class PortfolioSkill(db.Model):
+class PortfolioSkill(Base):
     __tablename__ = 'portfolio_skills'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -86,7 +86,7 @@ class PortfolioSkill(db.Model):
     years_experience = db.Column(db.Float)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-class PortfolioRating(db.Model):
+class PortfolioRating(Base):
     __tablename__ = 'portfolio_ratings'
     __module__ = 'models.portfolio'
     

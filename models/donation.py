@@ -1,8 +1,8 @@
 from datetime import datetime
-from extensions import db
-from models.user import User
+from .base import db, Base
+from .user import User
 
-class Donation(db.Model):
+class Donation(Base):
     __tablename__ = 'donations'
     
     id = db.Column(db.Integer, primary_key=True)

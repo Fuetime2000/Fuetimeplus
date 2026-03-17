@@ -5,7 +5,8 @@ from datetime import datetime
 
 from models.message import Message
 from models.user import User
-from extensions import db, socketio
+from models.base import db
+from extensions import socketio
 
 bp = Blueprint('messages', __name__)
 

@@ -55,9 +55,18 @@ CORS(app, resources={
     }
 })
 
-# Initialize Flask-Migrate
-from extensions import db, socketio
+# Configure app before initializing extensions
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///fuetime.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = 'o3#7n4@43y0ry5j4@2me+nn@vbu32rr=w7mz)1yzz7egy^)qn*'
+
+# Initialize Flask-Migrate with db from models.base
+from models.base import db
+from extensions import socketio
 from flask_migrate import Migrate
+
+# Initialize the database with the app
+db.init_app(app)
 migrate = Migrate(app, db)
 
 # Register API blueprints with CSRF protection disabled
@@ -141,11 +150,6 @@ def init_socketio_handlers():
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads')
 app.config['PROFILE_PICS_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'profile_pics')
 
-# Configure app
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///fuetime.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'o3#7n4@43y0ry5j4@2me+nn@vbu32rr=w7mz)1yzz7egy^)qn*'
-
 # Email configuration - Load from environment variables
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'email-smtp.eu-north-1.amazonaws.com')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
@@ -189,7 +193,8 @@ app.config['REMEMBER_COOKIE_SECURE'] = False  # Set to True in production with H
 app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
 
 # Import and initialize extensions
-from extensions import db, login_manager, babel, socketio, cache, csrf
+from models.base import db
+from extensions import login_manager, babel, socketio, cache, csrf
 
 # Configure upload folder for project images
 def configure_upload_folders():
@@ -261,7 +266,6 @@ def ensure_upload_folders():
         configure_upload_folders()
         _upload_folders_configured = True
 
-db.init_app(app)
 login_manager.init_app(app)
 babel.init_app(app)
 cache.init_app(app)
@@ -429,7 +433,8 @@ from sqlalchemy import text, inspect
 import time
 from urllib.parse import urlparse, urljoin
 
-from extensions import db, login_manager, migrate, babel, cache, socketio, csrf
+from models.base import db
+from extensions import login_manager, migrate, babel, cache, socketio, csrf
 # Import models
 from models import (
     User, ContactRequest, Review, Message, HelpRequest, 

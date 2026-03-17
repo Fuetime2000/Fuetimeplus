@@ -1,7 +1,7 @@
 from datetime import datetime
-from .base import db
+from .base import db, Base
 
-class HelpRequest(db.Model):
+class HelpRequest(Base):
     """
     Model for storing help/support requests from users.
     """

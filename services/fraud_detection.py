@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from models.behavior_tracking import UserBehavior, FraudAlert
-from extensions import db
+from models.base import db
 import json
 
 class FraudDetectionService:

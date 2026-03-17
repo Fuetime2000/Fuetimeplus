@@ -9,7 +9,8 @@ from sqlalchemy import or_, and_, desc, func, delete, update
 import hmac
 import hashlib
 from flask_cors import cross_origin
-from extensions import limiter, db, mail
+from extensions import limiter, mail
+from models.base import db
 from flask_jwt_extended import (
     create_access_token, 
     create_refresh_token, 
@@ -57,7 +58,7 @@ from models.saved_user import SavedUser
 from models.job_posting import JobPosting
 from models.job_request import JobRequest
 from models.device_pairing import DevicePairing, EmergencyAlert
-from extensions import db
+from models.base import db
 from datetime import datetime
 from flask import current_app
 from functools import wraps

@@ -5,7 +5,7 @@ import os
 
 from models.user import User
 from models.review import Review
-from extensions import db
+from models.base import db
 
 bp = Blueprint('profile', __name__)
 

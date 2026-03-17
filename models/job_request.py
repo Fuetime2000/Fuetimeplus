@@ -1,9 +1,9 @@
 from datetime import datetime
-from extensions import db
+from .base import db, Base
 from sqlalchemy import ForeignKey, text
 from sqlalchemy.orm import relationship
 
-class JobRequest(db.Model):
+class JobRequest(Base):
     """Model for job applications/requests from workers to job postings"""
     __tablename__ = 'job_requests'
     

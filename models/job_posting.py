@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from extensions import db
+from .base import db, Base
 from sqlalchemy import ForeignKey, text, TypeDecorator, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import CreateTable
@@ -26,7 +26,7 @@ class JSONEncodedDict(TypeDecorator):
 # Use JSON for SQLite, JSONB for PostgreSQL
 JSONType = JSONEncodedDict
 
-class JobPosting(db.Model):
+class JobPosting(Base):
     """Model for job postings by clients looking for workers"""
     __tablename__ = 'job_postings'
     

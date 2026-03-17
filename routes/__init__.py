@@ -7,7 +7,8 @@ from models import (
     HelpRequest, UserInteraction, Transaction, UserBehavior, 
     FraudAlert, Donation, Call, Project, Technology, PortfolioRating
 )
-from extensions import db, socketio, csrf
+from models.base import db
+from extensions import socketio, csrf
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import os

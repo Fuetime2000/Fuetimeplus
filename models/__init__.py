@@ -1,5 +1,5 @@
 # Import all models to ensure they are registered with SQLAlchemy
-from .base import db
+from .base import Base, db
 from .user import User
 from .portfolio import Portfolio, PortfolioProject, ProjectTechnology, PortfolioSkill, PortfolioRating
 from .message import Message
@@ -19,6 +19,7 @@ from .device_pairing import DevicePairing, EmergencyAlert
 
 # Create a dictionary of all models for easy access
 models = {
+    'Base': Base,
     'User': User,
     'Portfolio': Portfolio,
     'PortfolioProject': PortfolioProject,

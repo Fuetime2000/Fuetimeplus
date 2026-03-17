@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, current_app, render_template_string
 from models.user import User
-from extensions import db
+from models.base import db
 from flask_login import current_user
 
 bp = Blueprint('main', __name__)
