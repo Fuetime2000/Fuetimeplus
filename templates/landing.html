@@ -1103,6 +1103,162 @@
     opacity: 0.9;
 }
 
+/* New User Welcome Modal */
+.welcome-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 10002;
+    backdrop-filter: blur(10px);
+}
+
+.welcome-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #1a1a3e 0%, #2a2a5e 50%, #3a3a7e 100%);
+    border-radius: 20px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    border: 1px solid rgba(100, 255, 218, 0.3);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: welcomeSlideIn 0.5s ease-out;
+}
+
+@keyframes welcomeSlideIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+.welcome-header {
+    text-align: center;
+    padding: 2rem 2rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.welcome-header h3 {
+    color: #64ffda;
+    margin: 0 0 1rem 0;
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.welcome-header .welcome-icon {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(45deg, #64ffda, #00bcd4);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    font-size: 2rem;
+    color: #0f0c29;
+    animation: welcomeIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes welcomeIconPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.welcome-body {
+    padding: 2rem;
+    text-align: center;
+}
+
+.welcome-message {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+.welcome-app-benefits {
+    text-align: left;
+    margin-bottom: 2rem;
+}
+
+.benefit-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.benefit-item i {
+    color: #64ffda;
+    font-size: 1.2rem;
+    width: 20px;
+}
+
+.play-store-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: linear-gradient(45deg, #000000, #1a1a1a);
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 1rem;
+    min-width: 200px;
+    justify-content: center;
+}
+
+.play-store-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    background: linear-gradient(45deg, #1a1a1a, #2a2a2a);
+    color: white;
+}
+
+.play-store-btn i {
+    font-size: 1.5rem;
+}
+
+.welcome-close {
+    background: linear-gradient(45deg, #64ffda, #00bcd4);
+    color: #0f0c29;
+    border: none;
+    border-radius: 10px;
+    padding: 0.8rem 2rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.welcome-close:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(100, 255, 218, 0.3);
+}
+
+.welcome-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .hero-title {
@@ -1151,6 +1307,19 @@
         width: 100%;
         max-width: 300px;
         justify-content: center;
+    }
+    
+    .welcome-content {
+        width: 95%;
+        margin: 1rem;
+    }
+    
+    .welcome-header h3 {
+        font-size: 1.5rem;
+    }
+    
+    .welcome-message {
+        font-size: 1rem;
     }
 }
 
@@ -1694,6 +1863,57 @@ html {
     </div>
 </div>
 
+<!-- New User Welcome Modal -->
+<div id="welcomeModal" class="welcome-modal">
+    <div class="welcome-content">
+        <div class="welcome-header">
+            <div class="welcome-icon">
+                <i class="fas fa-mobile-alt"></i>
+            </div>
+            <h3>{{ _('Welcome to FueTime!') }}</h3>
+        </div>
+        
+        <div class="welcome-body">
+            <p class="welcome-message">
+                {{ _('Get the best experience with our mobile app! Stay connected, find opportunities, and manage your skills on the go.') }}
+            </p>
+            
+            <div class="welcome-app-benefits">
+                <div class="benefit-item">
+                    <i class="fas fa-bell"></i>
+                    <span>{{ _('Instant notifications for new jobs') }}</span>
+                </div>
+                <div class="benefit-item">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <span>{{ _('Location-based service discovery') }}</span>
+                </div>
+                <div class="benefit-item">
+                    <i class="fas fa-comments"></i>
+                    <span>{{ _('Real-time chat with clients') }}</span>
+                </div>
+                <div class="benefit-item">
+                    <i class="fas fa-star"></i>
+                    <span>{{ _('Build your reputation with reviews') }}</span>
+                </div>
+            </div>
+            
+            <div class="welcome-actions">
+                <a href="https://play.google.com/store/apps/details?id=com.fuetime.app" 
+                   target="_blank" 
+                   class="play-store-btn"
+                   onclick="trackPlayStoreClick()">
+                    <i class="fab fa-google-play"></i>
+                    <span>{{ _('Download on Play Store') }}</span>
+                </a>
+                
+                <button class="welcome-close" onclick="closeWelcomeModal()">
+                    {{ _('Continue to Website') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -1779,6 +1999,120 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Animate hero stats immediately
     setTimeout(() => animateNumbers(), 500);
+    
+    // Check if user is new and show welcome modal
+    checkAndShowWelcomeModal();
+});
+
+// New User Welcome Modal Functions
+function checkAndShowWelcomeModal() {
+    // Check if user has visited before
+    const hasVisited = localStorage.getItem('fueTimeVisited');
+    
+    if (!hasVisited) {
+        // Show welcome modal after a short delay for better UX
+        setTimeout(() => {
+            showWelcomeModal();
+        }, 2000);
+        
+        // Mark as visited
+        localStorage.setItem('fueTimeVisited', 'true');
+        localStorage.setItem('fueTimeVisitDate', new Date().toISOString());
+    }
+}
+
+function showWelcomeModal() {
+    const modal = document.getElementById('welcomeModal');
+    if (modal) {
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+        
+        // Track modal display for analytics
+        console.log('Welcome modal displayed for new user');
+        
+        // Optional: Send analytics data to server
+        trackWelcomeModalShown();
+    }
+}
+
+function closeWelcomeModal() {
+    const modal = document.getElementById('welcomeModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+        
+        // Track modal close
+        console.log('Welcome modal closed by user');
+        trackWelcomeModalClosed();
+    }
+}
+
+function trackPlayStoreClick() {
+    // Track Play Store button click for analytics
+    console.log('Play Store download button clicked');
+    
+    // Optional: Send analytics data to server
+    const analyticsData = {
+        event: 'play_store_click',
+        source: 'welcome_modal',
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        sessionId: generateSessionId()
+    };
+    
+    // Store for analytics or send to server
+    console.log('Analytics data:', analyticsData);
+    
+    // In a real implementation, you would send this to your analytics server
+    // fetch('/api/analytics', {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify(analyticsData)
+    // });
+}
+
+function trackWelcomeModalShown() {
+    const analyticsData = {
+        event: 'welcome_modal_shown',
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        sessionId: generateSessionId(),
+        isNewUser: true
+    };
+    
+    console.log('Analytics data:', analyticsData);
+    // Send to server in real implementation
+}
+
+function trackWelcomeModalClosed() {
+    const analyticsData = {
+        event: 'welcome_modal_closed',
+        timestamp: new Date().toISOString(),
+        sessionId: generateSessionId(),
+        timeShown: Date.now() - (localStorage.getItem('welcomeModalShownTime') || Date.now())
+    };
+    
+    console.log('Analytics data:', analyticsData);
+    // Send to server in real implementation
+}
+
+function generateSessionId() {
+    return 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('welcomeModal');
+    if (event.target == modal) {
+        closeWelcomeModal();
+    }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeWelcomeModal();
+    }
 });
 
 // Calculator Functions
@@ -1856,11 +2190,16 @@ function calculateEarnings() {
 window.onclick = function(event) {
     const modal = document.getElementById('calculatorModal');
     const chatbotModal = document.getElementById('chatbotModal');
+    const welcomeModal = document.getElementById('welcomeModal');
+    
     if (event.target == modal) {
         closeCalculatorModal();
     }
     if (event.target == chatbotModal) {
         closeChatbot();
+    }
+    if (event.target == welcomeModal) {
+        closeWelcomeModal();
     }
 }
 

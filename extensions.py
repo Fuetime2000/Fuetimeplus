@@ -41,8 +41,8 @@ socketio = SocketIO(
     manage_session=False,  # Let Flask manage sessions
     socketio_path='socket.io',
     always_connect=True,  # Ensure connections are established
-    transports=['polling'],  # Use only polling to avoid WebSocket issues
-    allow_upgrades=False,  # Disable upgrades to prevent connection issues
+    transports=['polling'],  # Start with polling only to avoid assertion errors
+    allow_upgrades=False,  # Disable upgrades temporarily for stability
     http_compression=True,  # Enable compression
     compression_level=3  # Compression level
 )

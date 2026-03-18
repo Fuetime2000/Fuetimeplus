@@ -4693,25 +4693,8 @@ def recent_donations():
         'anonymous': d.is_anonymous
     } for d in donations])
 
-# Socket.IO event handlers
-@socketio.on('connect')
-def handle_connect():
-    if not current_user.is_authenticated:
-        # Reject connection if user is not authenticated
-        return False
-    
-    join_room(f'user_{current_user.id}')
-    current_user.is_online = True
-    current_user.last_active = datetime.utcnow()
-    db.session.commit()
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    if current_user.is_authenticated:
-        leave_room(f'user_{current_user.id}')
-        current_user.is_online = False
-        current_user.last_active = datetime.utcnow()
-        db.session.commit()
+# Socket.IO event handlers are now centralized in events.py to avoid conflicts
+# Duplicate handlers removed to prevent message broadcasting issues
 
 @socketio.on('join')
 def on_join(data):
@@ -4783,11 +4766,7 @@ def chat(user_id):
                         'timestamp': message.created_at.strftime('%Y-%m-%d %H:%M:%S')
                     }
                     
-                    # Emit to both sender and receiver
-                    socketio.emit('receive_message', message_data, room=f'user_{current_user.id}')
-                    socketio.emit('receive_message', message_data, room=f'user_{user_id}')
-                    
-                    # Return success response
+                    # Return success response - Socket.IO will handle real-time delivery
                     return jsonify(message_data)
                 except SQLAlchemyError as e:
                     app.logger.error(f"Database error saving message: {str(e)}")

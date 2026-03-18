@@ -79,6 +79,12 @@ def register_socketio_events():
             if current_user.is_authenticated:
                 # Join user room
                 join_room(f'user_{current_user.id}')
+                
+                # Update user online status
+                current_user.is_online = True
+                current_user.last_active = datetime.utcnow()
+                db.session.commit()
+                
                 emit('status', {'user_id': current_user.id, 'status': 'online'}, room=f'user_{current_user.id}')
                 print(f"User {current_user.id} connected to WebSocket (default namespace)")
                 return True
@@ -110,6 +116,12 @@ def register_socketio_events():
         try:
             if current_user.is_authenticated:
                 leave_room(f'user_{current_user.id}')
+                
+                # Update user offline status
+                current_user.is_online = False
+                current_user.last_active = datetime.utcnow()
+                db.session.commit()
+                
                 emit('status', {'user_id': current_user.id, 'status': 'offline'}, room=f'user_{current_user.id}')
                 print(f"User {current_user.id} disconnected from WebSocket")
             else:
@@ -166,7 +178,7 @@ def handle_typing(data):
 @socketio.on('message')
 @socket_auth_required
 def handle_message(data):
-    """Handle message sending between users"""
+    """Handle message sending between users - properly targets specific users only"""
     recipient_id = data.get('recipient_id')
     content = data.get('content')
     
@@ -175,6 +187,12 @@ def handle_message(data):
         return
         
     try:
+        # Verify recipient exists
+        recipient = User.query.get(recipient_id)
+        if not recipient:
+            emit('error', {'message': 'Recipient not found'}, room=request.sid)
+            return
+        
         # Save message to database
         message = Message(
             sender_id=current_user.id,
@@ -185,8 +203,8 @@ def handle_message(data):
         db.session.add(message)
         db.session.commit()
         
-        # Emit to recipient
-        emit('new_message', {
+        # Prepare message data
+        message_data = {
             'id': message.id,
             'sender_id': current_user.id,
             'recipient_id': recipient_id,
@@ -194,21 +212,19 @@ def handle_message(data):
             'timestamp': message.created_at.isoformat(),
             'sender_name': current_user.full_name or current_user.email.split('@')[0],
             'sender_avatar': current_user.photo or url_for('static', filename='img/default-avatar.png')
-        }, room=f'user_{recipient_id}')
+        }
+        
+        # Emit to recipient's specific room only
+        emit('new_message', message_data, room=f'user_{recipient_id}')
         
         # Also send back to sender for their own UI update
-        emit('new_message', {
-            'id': message.id,
-            'sender_id': current_user.id,
-            'recipient_id': recipient_id,
-            'content': content,
-            'timestamp': message.created_at.isoformat(),
-            'sender_name': current_user.full_name or current_user.email.split('@')[0],
-            'sender_avatar': current_user.photo or url_for('static', filename='img/default-avatar.png')
-        }, room=f'user_{current_user.id}')
+        emit('new_message', message_data, room=f'user_{current_user.id}')
+        
+        logger.info(f'Message sent from user {current_user.id} to user {recipient_id}')
         
     except Exception as e:
         logger.error(f'Error handling message: {str(e)}')
+        db.session.rollback()
         emit('error', {'message': 'Failed to send message'}, room=request.sid)
 
 @socketio.on('profile_updated')
