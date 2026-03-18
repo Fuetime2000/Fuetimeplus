@@ -178,13 +178,33 @@ def chat(user_id):
                         'sender_avatar': current_user.photo or '/static/images/default-avatar.png'
                     }
                     
-                    # Emit to sender with 'message' event to trigger unread count update
-                    socketio.emit('message', message_data, room=f'user_{current_user.id}')
-                    # Emit to receiver with 'message' event to trigger unread count update
-                    socketio.emit('message', message_data, room=f'user_{user_id}')
-                    # Also emit to both with 'receive_message' for chat UI updates
-                    socketio.emit('receive_message', message_data, room=f'user_{current_user.id}')
-                    socketio.emit('receive_message', message_data, room=f'user_{user_id}')
+                    # Trigger real-time update to specific users only (not broadcast)
+                    try:
+                        # Use the same event name as the Socket.IO handler for consistency
+                        socketio.emit('new_message', {
+                            'id': message.id,
+                            'sender_id': current_user.id,
+                            'recipient_id': user_id,
+                            'content': content,
+                            'timestamp': message.created_at.isoformat(),
+                            'sender_name': current_user.full_name or current_user.email.split('@')[0],
+                            'sender_avatar': current_user.photo or '/static/images/default-avatar.png'
+                        }, room=f'user_{user_id}')  # Only send to recipient
+                        
+                        # Also send to sender for their own UI update
+                        socketio.emit('new_message', {
+                            'id': message.id,
+                            'sender_id': current_user.id,
+                            'recipient_id': user_id,
+                            'content': content,
+                            'timestamp': message.created_at.isoformat(),
+                            'sender_name': current_user.full_name or current_user.email.split('@')[0],
+                            'sender_avatar': current_user.photo or '/static/images/default-avatar.png'
+                        }, room=f'user_{current_user.id}')  # Only send to sender
+                        
+                    except Exception as socket_error:
+                        print(f"Socket.IO emit error: {socket_error}")
+                        # Continue even if Socket.IO fails - message is saved in database
                     
                     return jsonify(message_data)
                 except Exception as e:
